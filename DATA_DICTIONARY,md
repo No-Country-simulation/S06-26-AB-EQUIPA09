@@ -1,0 +1,175 @@
+# DATA_DICTIONARY
+
+# Objetivo
+
+Documentar todos os datasets utilizados pelo App BiT.
+
+---
+
+# Fonte Principal
+
+## Vísent CDRView
+
+Descrição:
+
+Dataset de concentração populacional e cobertura de rede baseado em ERBs com coordenadas reais da Anatel.
+
+---
+
+# Entidades
+
+## Regions
+
+Representa regiões monitoradas.
+
+| Campo | Tipo    |
+| ----- | ------- |
+| id    | UUID    |
+| nome  | String  |
+| pais  | String  |
+| lat   | Decimal |
+| lng   | Decimal |
+
+---
+
+## Network Coverage
+
+Cobertura de telecomunicações.
+
+| Campo               | Tipo    |
+| ------------------- | ------- |
+| region_id           | UUID    |
+| technology          | Enum    |
+| coverage_percentage | Decimal |
+
+---
+
+## Population Density
+
+Concentração de pessoas.
+
+| Campo                    | Tipo    |
+| ------------------------ | ------- |
+| region_id                | UUID    |
+| period                   | Date    |
+| population_concentration | Decimal |
+
+---
+
+# Tecnologias
+
+| Valor |
+| ----- |
+| 3G    |
+| 4G    |
+| 5G    |
+
+---
+
+# Indicadores Derivados
+
+## EMPLOYMENT
+
+Taxa de emprego formal por região.
+
+Fontes:
+
+* INE
+* Dados governamentais
+
+---
+
+## TRAINING
+
+Cobertura de programas de formação.
+
+Fontes:
+
+* Programas públicos
+* Parceiros educacionais
+
+---
+
+## MENTAL_HEALTH
+
+Indicadores de saúde mental.
+
+Fontes:
+
+* OMS
+* DATASUS
+* Ministérios da Saúde
+
+---
+
+## MENTORING
+
+Programas de mentoria.
+
+Fontes:
+
+* Organizações públicas
+* ONGs
+
+---
+
+## SOCIAL_EXPERIENCES
+
+Projetos comunitários e iniciativas sociais.
+
+Fontes:
+
+* Governos locais
+* Organizações sociais
+
+---
+
+# Regras de Qualidade
+
+Todos os datasets devem:
+
+* Possuir fonte identificável
+* Possuir data de atualização
+* Possuir histórico de processamento
+* Passar por validação ETL
+
+---
+
+# Pipeline de Dados
+
+```text
+Raw
+ ↓
+Validation
+ ↓
+Cleaning
+ ↓
+Transformation
+ ↓
+Processed
+ ↓
+PostgreSQL
+```
+
+---
+
+# Frequência de Atualização
+
+| Fonte   | Frequência          |
+| ------- | ------------------- |
+| Vísent  | Mensal              |
+| OMS     | Trimestral          |
+| DATASUS | Mensal              |
+| INE     | Conforme publicação |
+
+---
+
+# Catálogo de Fontes
+
+| Fonte               | Tipo        |
+| ------------------- | ----------- |
+| Vísent CDRView      | Mobilidade  |
+| DATASUS             | Saúde       |
+| OMS                 | Saúde       |
+| INE                 | Estatística |
+| APIs Governamentais | Indicadores |
