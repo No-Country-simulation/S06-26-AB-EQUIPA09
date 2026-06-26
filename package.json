@@ -1,0 +1,23 @@
+{
+    "name": "appbit",
+    "version": "1.0.0",
+    "private": true,
+    "packageManager": "pnpm@10",
+    "engines": {
+        "node": ">=22.0.0"
+    },
+    "scripts": {
+        "dev": "turbo run dev",
+        "build": "turbo run build",
+        "lint": "turbo run lint",
+        "test": "turbo run test",
+        "typecheck": "turbo run typecheck",
+        "clean": "turbo run clean",
+        "format": "prettier --write ."
+    },
+    "devDependencies": {
+        "turbo": "^2.5.4",
+        "typescript": "^5.8.3",
+        "prettier": "^3.5.3"
+    }
+}

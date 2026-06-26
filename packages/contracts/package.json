@@ -1,0 +1,12 @@
+{
+    "name": "@appbit/contracts",
+    "version": "1.0.0",
+    "scripts": {
+        "build": "echo contracts",
+        "lint": "echo contracts",
+        "typecheck": "echo contracts"
+    },
+    "dependencies": {
+        "zod": "^4.0.5"
+    }
+}
