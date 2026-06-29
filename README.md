@@ -1,8 +1,8 @@
-# App BiT — Painel Inteligente de Inclusão Digital e Equidade Social
+# SQLens — Painel Inteligente de Inclusão Digital e Equidade Social
 
 ## Visão Geral
 
-O App BiT é uma plataforma B2G (Business to Government) que utiliza dados geoespaciais, indicadores públicos e Inteligência Artificial para apoiar gestores públicos na tomada de decisões baseadas em evidências.
+O SQLens é uma plataforma B2G (Business to Government) que utiliza dados geoespaciais, indicadores públicos e Inteligência Artificial para apoiar gestores públicos na tomada de decisões baseadas em evidências.
 
 A plataforma consolida dados do dataset Vísent CDRView com fontes públicas complementares para identificar desigualdades relacionadas à:
 
