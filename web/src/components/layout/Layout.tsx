@@ -1,4 +1,7 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useRegioes } from '../../hooks/useApi'
+import { useAppStore } from '../../store'
+import { calcularPrioridades } from '../../lib/indicadores'
 
 const NAV = [
   { to: '/', label: 'Painel', icon: DashIcon, end: true, eyebrow: '01' },
@@ -43,6 +46,21 @@ export default function Layout() {
   const meta = TITLES[pathname] ?? TITLES['/']
   const isMapa = pathname === '/mapa'
 
+  const { data: regioes = [] } = useRegioes()
+  const { setRegiaoSelecionada } = useAppStore()
+  const navigate = useNavigate()
+
+  const totalCriticas = regioes.filter(r => r.cobertura_nivel === 'critica').length
+  const mediaRede = regioes.length ? Math.round((regioes.reduce((a, r) => a + r.cobertura_rede, 0) / regioes.length) * 100) : 0
+  const ranking = calcularPrioridades(regioes)
+  const topPrioridade = ranking[0] ?? null
+
+  function investigar() {
+    if (!topPrioridade) return
+    setRegiaoSelecionada(topPrioridade.regiao)
+    navigate('/mapa')
+  }
+
   return (
     <div className="min-h-screen flex bg-ink-950">
       <aside className="w-60 shrink-0 border-r border-ink-border-soft bg-ink-900 flex flex-col">
@@ -84,6 +102,48 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        <div className="px-3 pb-3">
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="rounded-lg bg-ink-850 border border-ink-border-soft py-2 text-center">
+              <p className="font-mono text-[14px] font-semibold text-mist-50 leading-none">{regioes.length}</p>
+              <p className="font-mono text-[8.5px] uppercase tracking-wider text-mist-600 mt-1">Regiões</p>
+            </div>
+            <div className="rounded-lg bg-ink-850 border border-ink-border-soft py-2 text-center">
+              <p className="font-mono text-[14px] font-semibold leading-none" style={{ color: 'var(--color-status-bad)' }}>{totalCriticas}</p>
+              <p className="font-mono text-[8.5px] uppercase tracking-wider text-mist-600 mt-1">Críticas</p>
+            </div>
+            <div className="rounded-lg bg-ink-850 border border-ink-border-soft py-2 text-center">
+              <p className="font-mono text-[14px] font-semibold text-mist-50 leading-none">{mediaRede}%</p>
+              <p className="font-mono text-[8.5px] uppercase tracking-wider text-mist-600 mt-1">Rede média</p>
+            </div>
+          </div>
+        </div>
+
+        {topPrioridade && (
+          <div className="px-3 pb-3">
+            <button
+              onClick={investigar}
+              className="w-full text-left rounded-xl border border-ink-border-soft bg-ink-850 hover:border-status-bad/40 transition-colors p-3 group"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-wider" style={{ color: 'var(--color-status-bad)' }}>
+                  <span className="relative flex w-1.5 h-1.5">
+                    <span className="absolute inline-flex w-full h-full rounded-full signal-ping" style={{ background: 'var(--color-status-bad)' }} />
+                    <span className="relative inline-flex w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-status-bad)' }} />
+                  </span>
+                  Prioridade nº1
+                </span>
+                <span className="font-mono text-[10px] text-mist-600">índice {topPrioridade.indice}</span>
+              </div>
+              <p className="text-[13px] font-medium text-mist-100 leading-tight">{topPrioridade.regiao.nome}</p>
+              <p className="text-[11px] text-mist-500 mt-0.5">{topPrioridade.motivo}</p>
+              <span className="inline-flex items-center gap-1 mt-2 text-[11px] text-signal-400 group-hover:text-signal-300 font-medium">
+                Investigar região →
+              </span>
+            </button>
+          </div>
+        )}
 
         <div className="p-4 border-t border-ink-border-soft">
           <div className="rounded-xl bg-ink-850 border border-ink-border-soft p-3">

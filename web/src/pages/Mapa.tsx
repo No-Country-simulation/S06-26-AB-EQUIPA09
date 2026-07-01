@@ -84,7 +84,7 @@ export default function Mapa() {
             >
               ×
             </button>
-            <RegionPanel regiao={regiaoSelecionada} />
+            <RegionPanel regiao={regiaoSelecionada} todasRegioes={regioes} />
           </div>
         )}
       </div>

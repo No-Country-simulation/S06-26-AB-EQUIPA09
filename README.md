@@ -1,629 +1,123 @@
-# App BiT — Painel Inteligente de Inclusão Digital e Equidade Social
+# SQLens — Radar de Inclusão Digital
 
-## Visão Geral
+Painel de dados públicos para identificar e **priorizar** lacunas de inclusão digital em Luanda, Angola. Construído para o **Desafio B2G (App BiT)**.
 
-O App BiT é uma plataforma B2G (Business to Government) que utiliza dados geoespaciais, indicadores públicos e Inteligência Artificial para apoiar gestores públicos na tomada de decisões baseadas em evidências.
-
-A plataforma consolida dados do dataset Vísent CDRView com fontes públicas complementares para identificar desigualdades relacionadas à:
-
-* Inclusão Digital
-* Empregabilidade
-* Formação Profissional
-* Saúde Mental
-* Mentorias e Iniciativas Sociais
-
-O objetivo é transformar dados dispersos em inteligência acionável para políticas públicas.
+> Onde faltam formações, emprego formal, iniciativas sociais, mentorias e apoio à saúde mental — e onde isso coincide com baixa cobertura de rede? O SQLens cruza esses dados por região, transforma-os num índice de prioridade acionável, e responde a perguntas em linguagem natural.
 
 ---
 
-# Problema
+## Conceito
 
-Gestores públicos frequentemente enfrentam dificuldades para cruzar informações de diferentes fontes e identificar regiões que necessitam de intervenção prioritária.
+O nome do produto e o problema que resolve são, literalmente, sobre **cobertura** — de rede, de programas, de oportunidades. Em vez de mais um dashboard claro genérico, a interface foi desenhada à volta dessa ideia:
 
-Entre os desafios estão:
+- **Radar de cobertura** (página inicial): cada região é um ponto plotado pela sua cobertura de rede real — quanto mais perto do centro, mais urgente a região. É o elemento de assinatura do produto, clicável, e leva diretamente ao mapa com a região já selecionada.
+- **Tema "mission control"**: fundo escuro, tipografia serifada (Fraunces) para números e títulos, monoespaçada (JetBrains Mono) para todos os valores e dados — para comunicar precisão e seriedade, adequado a um painel usado por gestores públicos para decidir onde investir.
+- **Mapa** com tiles escuros (CARTO Dark Matter), coerente com o resto da aplicação, e enquadramento automático aos dados (em vez de coordenadas fixas).
 
-* Dados dispersos em múltiplas plataformas
-* Falta de visualização territorial integrada
-* Dificuldade em realizar consultas complexas
-* Ausência de ferramentas acessíveis para análise de impacto social
-* Baixa integração entre indicadores sociais e infraestrutura digital
+## Diferencial: Índice de Prioridade de Investimento
 
-O App BiT resolve esse problema através de um painel inteligente apoiado por IA e geolocalização.
+O maior risco de um dashboard de dados públicos é mostrar muitos números sem dizer **onde agir primeiro**. Por isso o SQLens não se fica pela visualização — calcula um **índice de prioridade (0–100)** por região (`src/lib/indicadores.ts → calcularPrioridades`), combinando três sinais normalizados:
 
----
+| Sinal | Peso | Porquê |
+|---|---|---|
+| Concentração populacional | 40% | Mais gente afetada → maior retorno social por Kwanza investido |
+| Défice de cobertura de rede | 35% | Sem rede, nenhum programa digital chega — é o obstáculo estrutural mais difícil de contornar |
+| Défice médio nos indicadores sociais | 25% | Mede a lacuna de programas (formação, emprego, mentoria, saúde mental) já existentes |
 
-# Arquitetura do Projeto
+O resultado é um **ranking explicável**: cada região aparece com o seu score e o motivo dominante ("cobertura de rede é o principal obstáculo", "alta concentração populacional amplifica o impacto", etc.). Isto aparece em dois sítios:
 
-O projeto utiliza uma arquitetura Monorepo baseada em Turborepo e PNPM Workspaces.
+- **Dashboard** → cartão "Prioridade de investimento" com o top 5 nacional.
+- **Sidebar** → destaque permanente da região #1, com atalho directo para investigar no mapa.
 
-Esta abordagem permite:
+É o que transforma o SQLens de "visualizador de dados" em **ferramenta de apoio à decisão** — o tipo de diferencial que um júri B2G costuma valorizar.
 
-* Desenvolvimento paralelo entre equipas
-* Compartilhamento de código
-* Contratos únicos entre frontend e backend
-* Menor overhead operacional
-* Escalabilidade futura
+## Outros diferenciais
 
----
+- **Comparação região vs. média nacional**: ao selecionar uma região no mapa, o painel lateral mostra um radar chart (Recharts) sobreposto à média nacional por categoria — torna visível, de relance, *onde* uma região está pior do que a média do país, não apenas *que valor* tem cada indicador.
+- **Snapshot ao vivo na sidebar**: contagem de regiões, regiões críticas e cobertura média sempre visíveis, sem precisar de navegar até ao Dashboard.
+- **Consulta em linguagem natural**: pergunta-se em português corrente (ex. *"Onde faltam programas de formação para jovens de baixa renda?"*) e o agente devolve uma resposta com evidências e tabela de dados de suporte.
+- **Mapa robusto a qualquer dataset**: em vez de um centro fixo, o mapa ajusta automaticamente o enquadramento (`FitBounds`) às coordenadas das regiões recebidas — funciona com qualquer cidade/território sem alterar código.
 
-# Estrutura do Monorepo
+## Stack
 
-```text
-appbit/
-│
-├── apps/
-│   ├── web/
-│   ├── api/
-│   └── docs-site/
-│
-├── packages/
-│   ├── contracts/
-│   ├── ui/
-│   ├── types/
-│   ├── shared/
-│   └── config/
-│
-├── data/
-│   ├── datasets/
-│   ├── pipelines/
-│   ├── notebooks/
-│   └── exports/
-│
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── API_CONTRACT.md
-│   ├── DATA_DICTIONARY.md
-│   └── ADR/
-│
-├── infra/
-│   ├── docker/
-│   ├── database/
-│   ├── railway/
-│   └── github/
-│
-├── scripts/
-│
-├── .github/
-│   └── workflows/
-│
-├── turbo.json
-├── pnpm-workspace.yaml
-├── package.json
-├── .env.example
-└── README.md
+| Camada | Tecnologia |
+|---|---|
+| Build | Vite 7 |
+| UI | React 19 + TypeScript |
+| Estilos | Tailwind CSS v4 (tokens via `@theme`, sem cores no `tailwind.config`) |
+| Routing | React Router 7 |
+| Estado servidor | TanStack Query |
+| Estado cliente | Zustand |
+| Mapa | React Leaflet + tiles CARTO Dark Matter |
+| Gráficos | Recharts (radar de comparação) + SVG nativo (radar de cobertura, gauges) |
+| Animações | Framer Motion (disponível), CSS keyframes para os indicadores de sinal |
+
+## Estrutura
+
+```
+src/
+├── components/
+│   ├── dashboard/
+│   │   ├── CoverageRadar.tsx     # elemento de assinatura — radar SVG de cobertura
+│   │   └── PriorityRanking.tsx   # diferencial — ranking do índice de prioridade
+│   ├── layout/
+│   │   └── Layout.tsx            # sidebar (snapshot + prioridade #1) + topbar
+│   ├── map/
+│   │   ├── CoberturaTag.tsx
+│   │   ├── MapView.tsx           # Leaflet, tiles CARTO, auto-fit de bounds
+│   │   └── RegionPanel.tsx       # painel da região + radar comparativo
+│   ├── query/
+│   │   └── AIQueryBar.tsx        # barra de consulta em linguagem natural
+│   └── ui/
+│       └── CircularGauge.tsx     # gauge circular reutilizável
+├── lib/
+│   └── indicadores.ts            # mediaIndicador, regiaoMaisCritica, calcularPrioridades
+├── pages/
+│   ├── Dashboard.tsx
+│   ├── Mapa.tsx
+│   └── Consulta.tsx
+├── hooks/useApi.ts                # React Query + mock/API toggle
+├── store/index.ts                 # Zustand (seleção, filtros, última resposta)
+├── data/mock.ts                   # dataset mock de regiões de Luanda
+└── types/index.ts
 ```
 
----
+## Como correr
 
-# Componentes do Sistema
-
-## apps/web
-
-Aplicação web utilizada pelos gestores públicos.
-
-### Stack
-
-* React
-* Vite
-* TypeScript
-* Tailwind CSS
-* TanStack Query
-* React Router
-* Leaflet
-* Recharts
-* PWA
-
-### Responsabilidades
-
-* Dashboard
-* Mapa Geográfico
-* Filtros
-* Relatórios
-* Interface de Consulta IA
-
----
-
-## apps/api
-
-API principal da plataforma.
-
-### Stack
-
-* Node.js
-* Fastify
-* TypeScript
-* PostgreSQL
-* PostGIS
-* Drizzle ORM
-* Redis
-* Swagger/OpenAPI
-
-### Responsabilidades
-
-* Regras de negócio
-* Exposição dos endpoints
-* Integração com banco de dados
-* Integração com IA
-* Cache
-* Geração de relatórios
-
----
-
-## apps/docs-site
-
-Portal interno de documentação.
-
-Pode ser implementado com:
-
-* Docusaurus
-* Nextra
-* Astro Starlight
-
-Objetivo:
-
-Centralizar toda documentação técnica da equipa.
-
----
-
-# Packages Compartilhados
-
-## packages/contracts
-
-Fonte oficial dos contratos da API.
-
-Contém:
-
-```text
-openapi/
-schemas/
-requests/
-responses/
+```bash
+npm install
+npm run dev
 ```
 
-Regra obrigatória:
+Por omissão usa dados mock (`VITE_USE_MOCK=true` em `src/.env`). Para ligar a uma API real, definir:
 
-Nenhum endpoint pode ser implementado antes de existir neste módulo.
-
----
-
-## packages/types
-
-Tipos compartilhados entre frontend e backend.
-
-Exemplos:
-
-```ts
-Region
-Indicator
-Report
-Coverage
+```
+VITE_USE_MOCK=false
+VITE_API_URL=https://a-tua-api
 ```
 
-Benefícios:
+A API esperada expõe `GET /mapa` (lista de regiões) e `POST /dados` (consulta em linguagem natural) — ver os tipos em `src/types/index.ts` e o contrato em `src/hooks/useApi.ts`.
 
-* Segurança de tipos
-* Menos bugs de integração
-* Desenvolvimento paralelo
+### Outros scripts
 
----
-
-## packages/ui
-
-Biblioteca de componentes reutilizáveis.
-
-Exemplos:
-
-```text
-Button
-Card
-Table
-IndicatorCard
-MapLegend
-AIResponseCard
+```bash
+npm run build       # tsc -b && vite build
+npm run typecheck   # tsc --noEmit
+npm run lint
+npm run preview     # serve o build de produção
 ```
 
----
-
-## packages/shared
-
-Código compartilhado.
-
-Exemplos:
-
-```text
-Validators
-Constants
-Formatters
-Utilities
-```
-
----
-
-## packages/config
-
-Configuração centralizada.
-
-Inclui:
-
-```text
-ESLint
-Prettier
-TypeScript
-Tailwind
-```
-
----
-
-# Camada de Dados
-
-## data/datasets
-
-Armazena datasets utilizados pelo projeto.
-
-```text
-raw/
-processed/
-external/
-```
-
----
-
-## data/pipelines
-
-Pipelines ETL.
-
-```text
-visent/
-datasus/
-oms/
-regional/
-```
-
-Responsável por:
-
-* Ingestão
-* Limpeza
-* Transformação
-* Normalização
-
----
-
-## data/notebooks
-
-Área exploratória para cientistas de dados.
-
-Ferramentas:
-
-* Jupyter
-* Pandas
-* GeoPandas
-* DuckDB
-* Polars
-
----
-
-## data/exports
-
-Exportações para consumo da API.
-
-```text
-postgres/
-parquet/
-```
-
----
-
-# Fluxo de Dados
-
-```text
-Dataset Vísent
-        ↓
-ETL
-        ↓
-Transformação
-        ↓
-PostgreSQL/PostGIS
-        ↓
-Fastify API
-        ↓
-Frontend
-        ↓
-Gestor Público
-```
-
----
-
-# Fluxo da Inteligência Artificial
-
-```text
-Pergunta
-    ↓
-Endpoint /dados
-    ↓
-AI Service
-    ↓
-Query Builder
-    ↓
-Banco de Dados
-    ↓
-Contexto Estruturado
-    ↓
-LLM
-    ↓
-Resposta Explicável
-```
-
-A IA não acessa diretamente os datasets.
-
-Toda informação passa pela camada de dados validada.
-
----
-
-# Banco de Dados
-
-## Tecnologia
-
-* PostgreSQL
-* PostGIS
-
-## Tabelas Principais
-
-### regions
-
-```text
-id
-nome
-pais
-lat
-lng
-```
-
----
-
-### network_coverage
-
-```text
-id
-region_id
-technology
-coverage_percentage
-```
-
----
-
-### population_density
-
-```text
-id
-region_id
-period
-population_concentration
-```
-
----
-
-### indicators
-
-```text
-id
-region_id
-type
-value
-source
-period
-```
-
----
-
-### data_sources
-
-```text
-id
-name
-source_url
-last_update
-```
-
----
-
-# Documentação
-
-Toda documentação oficial encontra-se em:
-
-```text
-docs/
-```
-
----
-
-## ARCHITECTURE.md
-
-Contém:
-
-* Diagramas C4
-* Fluxos do sistema
-* Responsabilidades
-* Integrações
-* Decisões arquiteturais
-
----
-
-## API_CONTRACT.md
-
-Contém:
-
-* Endpoints
-* Payloads
-* Responses
-* Errors
-* Versionamento
-
----
-
-## DATA_DICTIONARY.md
-
-Dicionário oficial de dados.
-
-Exemplo:
-
-| Campo         | Origem | Descrição                 |
-| ------------- | ------ | ------------------------- |
-| concentration | Vísent | Concentração populacional |
-| erb_coverage  | Vísent | Cobertura de rede         |
-| technology    | Vísent | Tecnologia móvel          |
-
----
-
-## ADR
-
-Architecture Decision Records.
-
-Documenta decisões importantes da arquitetura.
-
-Exemplos:
-
-```text
-001-monorepo.md
-002-fastify.md
-003-postgis.md
-004-ai-provider.md
-```
-
----
-
-# Infraestrutura
-
-## Desenvolvimento Local
-
-Utiliza Docker Compose.
-
-Serviços:
-
-* PostgreSQL
-* Redis
-* API
-* Frontend
-
----
-
-## Deploy
-
-### Frontend
-
-Vercel
-
-### Backend
-
-Railway
-
-### Banco de Dados
-
-Railway PostgreSQL
-
-### Cache
-
-Railway Redis
-
----
-
-# CI/CD
-
-GitHub Actions.
-
-Pipelines:
-
-```text
-lint
-test
-build
-deploy
-```
-
-Executados automaticamente em Pull Requests e Releases.
-
----
-
-# Convenções de Branches
-
-```text
-main
-develop
-
-feature/*
-bugfix/*
-hotfix/*
-```
-
-Exemplos:
-
-```text
-feature/map-view
-feature/ai-query
-feature/visent-import
-```
-
----
-
-# Fluxo de Desenvolvimento
-
-1. Criar branch a partir de develop
-2. Implementar funcionalidade
-3. Abrir Pull Request
-4. Revisão
-5. Merge para develop
-6. Release para main
-
----
-
-# Roadmap MVP
-
-## Fase 1
-
-* Estrutura do Monorepo
-* Banco PostgreSQL
-* Importação Vísent
-* API Base
-* Dashboard Inicial
-
-## Fase 2
-
-* Indicadores
-* Visualização Geográfica
-* Consultas IA
-
-## Fase 3
-
-* Relatórios PDF
-* Exportações
-* Comparativos Regionais
-
-## Fase 4
-
-* Multi-idioma
-* Alertas
-* Novas Fontes de Dados
-
----
-
-# Boas Práticas
-
-* Nunca versionar arquivos .env
-* Nunca expor credenciais
-* Todo endpoint deve possuir documentação OpenAPI
-* Toda alteração de schema deve possuir migration
-* Todo módulo deve possuir testes mínimos
-* Utilizar Conventional Commits
-
-Exemplos:
-
-```text
-feat: add map endpoint
-fix: correct coverage calculation
-docs: update architecture docs
-```
-
----
-
-# Missão
-
-Utilizar dados, geolocalização e inteligência artificial para apoiar decisões públicas mais rápidas, transparentes e orientadas por evidências, promovendo inclusão digital e equidade social.
+## Notas de implementação
+
+- O mapa usa **auto-fit de bounds** (`MapView.tsx`) calculado a partir das coordenadas das regiões recebidas, em vez de um centro fixo — torna a aplicação robusta a qualquer cidade/dataset, sem coordenadas "chumbadas" no código. Centro de fallback (antes dos dados chegarem): Luanda, `[-8.84, 13.23]`.
+- Os tiles usam o serviço público CARTO: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png` com `subdomains="abcd"`. *(Nota: o path correto do CARTO é `dark_all`, não `dark_matter` — um erro fácil de cometer que deixa o mapa em branco por os tiles devolverem 404.)*
+- Cores de estado (crítica / atenção / boa) e todos os tokens visuais estão centralizados em `src/index.css` via `@theme` do Tailwind v4 — para ajustar a paleta, basta editar as variáveis `--color-*` num único sítio.
+- `prefers-reduced-motion` é respeitado: as animações de "sinal" (pulso, sweep do radar) desligam-se automaticamente.
+- `tsconfig.json` não vinha no scaffold original do projeto — sem ele, `npm run build` falha silenciosamente ao chamar `tsc -b`. Foi adicionado na raiz do projeto (`web/tsconfig.json`).
+
+## Próximos passos sugeridos
+
+- Substituir o dataset mock por ligação real à API Vísent CDRView.
+- Exportação de relatórios (PDF/CSV) do ranking de prioridade, por região ou por consulta IA.
+- Histórico de consultas anteriores (o tipo `QueryLogEntry` já existe em `types/index.ts`, ainda por persistir/usar), com possibilidade de comparar evolução temporal por região.
+- Ajustar os pesos do índice de prioridade (`calcularPrioridades`) com dados reais/feedback de especialistas em políticas públicas, em vez dos pesos iniciais (40/35/25).

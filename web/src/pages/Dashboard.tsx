@@ -4,8 +4,8 @@ import AIQueryBar from '../components/query/AIQueryBar'
 import CoberturaTag from '../components/map/CoberturaTag'
 import CircularGauge from '../components/ui/CircularGauge'
 import CoverageRadar from '../components/dashboard/CoverageRadar'
-import { useAppStore } from '../store'
-import type { Regiao } from '../types'
+import PriorityRanking from '../components/dashboard/PriorityRanking'
+import { mediaIndicador } from '../lib/indicadores'
 
 const INDICADORES = [
   { slug: 'cobertura-formacao-tech', label: 'Formações Tech' },
@@ -14,12 +14,6 @@ const INDICADORES = [
   { slug: 'cobertura-mentoria', label: 'Mentorias' },
   { slug: 'indice-saude-mental', label: 'Saúde Mental' },
 ]
-
-function mediaNacional(regioes: Regiao[], slug: string) {
-  if (!regioes.length) return 0
-  const vals = regioes.map(r => r.indicadores.find(i => i.slug === slug)?.valor ?? 0)
-  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
-}
 
 function SignalBars({ pct }: { pct: number }) {
   const active = Math.round((pct / 100) * 5)
@@ -86,7 +80,7 @@ export default function Dashboard() {
               ? INDICADORES.map(i => <div key={i.slug} className="bg-ink-900 border border-ink-border-soft rounded-2xl h-24 animate-pulse" />)
               : INDICADORES.map(ind => (
                 <div key={ind.slug} className="bg-ink-900 rounded-2xl border border-ink-border-soft p-3 flex flex-col items-center text-center gap-2">
-                  <CircularGauge value={mediaNacional(regioes, ind.slug)} size={48} stroke={4} />
+                  <CircularGauge value={mediaIndicador(regioes, ind.slug)} size={48} stroke={4} />
                   <p className="text-[10.5px] text-mist-400 leading-tight">{ind.label}</p>
                 </div>
               ))}
@@ -122,6 +116,12 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {!isLoading && regioes.length > 0 && (
+        <div className="mb-6">
+          <PriorityRanking regioes={regioes} />
+        </div>
+      )}
 
       <div className="bg-ink-900 rounded-2xl border border-ink-border-soft overflow-hidden">
         <div className="px-5 py-3.5 border-b border-ink-border-soft flex items-center justify-between">

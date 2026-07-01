@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom'
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts'
 import type { Regiao } from '../../types'
 import { useAppStore } from '../../store'
+import { mediaIndicador } from '../../lib/indicadores'
 import CoberturaTag from './CoberturaTag'
 import CircularGauge from '../ui/CircularGauge'
 
@@ -12,7 +14,13 @@ const CATEGORIA_LABEL: Record<string, string> = {
   saude_mental: 'Saúde Mental',
 }
 
-export default function RegionPanel({ regiao }: { regiao: Regiao }) {
+interface Props {
+  regiao: Regiao
+  /** Conjunto completo de regiões, usado para calcular a média nacional de comparação. */
+  todasRegioes?: Regiao[]
+}
+
+export default function RegionPanel({ regiao, todasRegioes = [] }: Props) {
   const { setConsultaAtual } = useAppStore()
   const navigate = useNavigate()
 
@@ -20,6 +28,12 @@ export default function RegionPanel({ regiao }: { regiao: Regiao }) {
     setConsultaAtual(`Quais são os principais desafios de inclusão digital em ${regiao.nome}?`)
     navigate('/consulta')
   }
+
+  const comparativo = regiao.indicadores.map(ind => ({
+    categoria: CATEGORIA_LABEL[ind.categoria] ?? ind.categoria,
+    regiao: ind.valor,
+    media: mediaIndicador(todasRegioes, ind.slug),
+  }))
 
   return (
     <div className="w-80 shrink-0 border-l border-ink-border-soft bg-ink-900 flex flex-col overflow-y-auto">
@@ -45,6 +59,31 @@ export default function RegionPanel({ regiao }: { regiao: Regiao }) {
           <p className="text-[13px] font-semibold text-mist-100 font-mono">{regiao.programas_count}</p>
         </div>
       </div>
+
+      {todasRegioes.length > 1 && (
+        <div className="p-5 border-b border-ink-border-soft">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10.5px] font-mono font-medium text-mist-600 uppercase tracking-wider">Vs. média nacional</p>
+          </div>
+          <div className="flex items-center gap-3 mb-1 text-[10.5px]">
+            <span className="flex items-center gap-1.5 text-mist-400"><span className="w-2 h-2 rounded-full bg-signal-400" />{regiao.nome}</span>
+            <span className="flex items-center gap-1.5 text-mist-600"><span className="w-2 h-2 rounded-full bg-[#3A4256]" />Média nacional</span>
+          </div>
+          <div className="h-[180px] -mx-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={comparativo} outerRadius="72%">
+                <PolarGrid stroke="var(--color-ink-border)" />
+                <PolarAngleAxis
+                  dataKey="categoria"
+                  tick={{ fill: '#8993A8', fontSize: 9.5, fontFamily: 'Inter' }}
+                />
+                <Radar dataKey="media" stroke="#3A4256" fill="#3A4256" fillOpacity={0.35} strokeWidth={1.5} />
+                <Radar dataKey="regiao" stroke="#6EF0D6" fill="#3FDCBE" fillOpacity={0.3} strokeWidth={2} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       <div className="p-5 flex-1">
         <p className="text-[10.5px] font-mono font-medium text-mist-600 uppercase tracking-wider mb-3">Indicadores</p>
