@@ -10,20 +10,27 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      JWT_SECRET: test-secret
+      DB_USER: test
+      DB_HOST: localhost
+      DB_DATABASE: test
+      DB_PASSWORD: test
+      APP_URL: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3000
+      ENCRYPTION_KEY: 12345678901234567890123456789012
+      SIGNED_URL_SECRET: test-secret
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - run: bun install
-
       - run: bun run lint
-
       - run: bun run typecheck
-
       - run: bun run test:run
 
   web:
@@ -33,14 +40,14 @@ jobs:
         working-directory: web
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
-      - run: npm install
-
+      - run: npm ci
       - run: npm run lint
-
       - run: npm run typecheck
