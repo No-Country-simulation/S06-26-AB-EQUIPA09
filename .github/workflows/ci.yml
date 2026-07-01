@@ -12,18 +12,15 @@ jobs:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - run: bun install
-
       - run: bun run lint
-
       - run: bun run typecheck
-
       - run: bun run test:run
 
   web:
@@ -33,12 +30,13 @@ jobs:
         working-directory: web
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
 
-      - run: npm install
-
+      - run: npm ci
       - run: npm run lint
-
       - run: npm run typecheck
