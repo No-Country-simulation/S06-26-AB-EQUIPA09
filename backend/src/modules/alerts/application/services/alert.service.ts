@@ -1,10 +1,9 @@
 import type { IAlertConfigRepository, IAlertLogRepository, IAlertService } from '../ports/alert.port'
 import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
-import { auditHelpers } from '@/modules/activity/events/audit.listener'
+import { auditHelpers } from '@/modules/activity/application/services/audit-logger'
 import { logger } from '@/shared/logger/logger'
 import { withTransaction } from '@/db/transaction'
-import { emitAlertFired } from '../../events/alert.events'
 
 const COMPONENT = 'AlertService'
 
@@ -98,16 +97,15 @@ export const createAlertService = (
 
                 await configRepo.update(config.id, { lastCheckedAt: new Date() }, tx)
 
-                emitAlertFired(
-                  config.id,
-                  config.userId,
+                logger.info({
+                  configId: config.id,
+                  userId: config.userId,
                   indicatorId,
                   regionId,
                   period,
                   normalizedValue,
-                  config.criticalThreshold,
-                  config.channel,
-                )
+                  threshold: config.criticalThreshold,
+                }, 'Alert fired')
               })
             } catch (err) {
               logger.error({ err, configId: config.id }, 'Failed to process alert fire')

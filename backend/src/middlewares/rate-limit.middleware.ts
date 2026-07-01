@@ -1,24 +1,40 @@
 import { Elysia } from 'elysia'
-import Redis from 'ioredis'
-import { env } from '@/config/env'
 import { ErrorFactory } from '@/shared/result/factory'
 import { Err } from '@/shared/result/types'
 import { logger } from '@/shared/logger/logger'
 
-const redisConnection = new Redis({
-  host: env.REDIS_HOST,
-  port: env.REDIS_PORT,
-  password: env.REDIS_PASSWORD,
-  maxRetriesPerRequest: null,
-  retryStrategy: (times: number) => {
-    const delay = Math.min(times * 50, 2000)
-    return delay
-  },
-})
+interface RateLimitEntry {
+  count: number
+  ttl: number
+  expiresAt: number
+}
 
-redisConnection.on('error', (error) => {
-  logger.error({ error }, 'Redis rate limiter connection error')
-})
+const store = new Map<string, RateLimitEntry>()
+
+const CLEANUP_INTERVAL = 60_000
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of store) {
+    if (entry.expiresAt <= now) {
+      store.delete(key)
+    }
+  }
+}, CLEANUP_INTERVAL).unref()
+
+function getEntry(key: string, windowSeconds: number): RateLimitEntry {
+  const now = Date.now()
+  const existing = store.get(key)
+  if (existing && existing.expiresAt > now) {
+    return existing
+  }
+  const entry: RateLimitEntry = {
+    count: 0,
+    ttl: windowSeconds,
+    expiresAt: now + windowSeconds * 1000,
+  }
+  store.set(key, entry)
+  return entry
+}
 
 export interface RateLimitConfig {
   windowMs: number
@@ -27,46 +43,18 @@ export interface RateLimitConfig {
 }
 
 export const RateLimitPresets = {
-  AUTH: {
-    windowMs: 15 * 60 * 1000,
-    maxRequests: 5,
-    keyPrefix: 'auth:',
-  },
-
-  AUTH_FAIL: {
-    windowMs: 60 * 60 * 1000,
-    maxRequests: 5,
-    keyPrefix: 'auth_fail:',
-  },
-
-  API: {
-    windowMs: 60 * 1000,
-    maxRequests: 60,
-    keyPrefix: 'api:',
-  },
-
-  PUBLIC: {
-    windowMs: 60 * 1000,
-    maxRequests: 120,
-    keyPrefix: 'public:',
-  },
-
-  CRITICAL: {
-    windowMs: 60 * 60 * 1000,
-    maxRequests: 10,
-    keyPrefix: 'critical:',
-  },
+  AUTH:     { windowMs: 15 * 60 * 1000, maxRequests: 5,  keyPrefix: 'auth:' },
+  AUTH_FAIL:{ windowMs: 60 * 60 * 1000, maxRequests: 5,  keyPrefix: 'auth_fail:' },
+  API:      { windowMs: 60 * 1000,      maxRequests: 60, keyPrefix: 'api:' },
+  PUBLIC:   { windowMs: 60 * 1000,      maxRequests: 120,keyPrefix: 'public:' },
+  CRITICAL: { windowMs: 60 * 60 * 1000, maxRequests: 10, keyPrefix: 'critical:' },
 } as const
 
 export const recordAuthFailure = async (email: string, ip: string): Promise<void> => {
   const baseKey = `ratelimit:auth_fail:${ip}:${email.slice(0, 4)}`
   try {
-    const exists = await redisConnection.exists(baseKey)
-    if (!exists) {
-      await redisConnection.setex(baseKey, 3600, '1')
-    } else {
-      await redisConnection.incr(baseKey)
-    }
+    const entry = getEntry(baseKey, 3600)
+    entry.count++
   } catch (err) {
     logger.error({ err, email, ip }, 'Failed to record auth failure')
   }
@@ -79,41 +67,22 @@ export const rateLimitMiddleware = (config: RateLimitConfig) =>
     const windowSeconds = Math.ceil(config.windowMs / 1000)
 
     try {
-      const multi = redisConnection.multi()
-      multi.incr(key)
-      multi.ttl(key)
+      const entry = getEntry(key, windowSeconds)
+      entry.count++
 
-      const results = await multi.exec()
-
-      if (!results) {
-        logger.warn({ ip, key }, 'Redis rate limit check failed')
-        return undefined
-      }
-
-      const [[, currentCount], [, ttl]] = results as [[null, number], [null, number]]
-
-      if (ttl === -1) {
-        await redisConnection.expire(key, windowSeconds)
-      }
-
-      const remaining = Math.max(0, config.maxRequests - currentCount)
-      const resetTime = ttl > 0 ? Date.now() + ttl * 1000 : Date.now() + config.windowMs
+      const remaining = Math.max(0, config.maxRequests - entry.count)
+      const resetTime = entry.expiresAt
 
       set.headers['X-RateLimit-Limit'] = config.maxRequests.toString()
       set.headers['X-RateLimit-Remaining'] = remaining.toString()
       set.headers['X-RateLimit-Reset'] = new Date(resetTime).toISOString()
 
-      if (currentCount > config.maxRequests) {
-        const retryAfter = ttl > 0 ? ttl : windowSeconds
+      if (entry.count > config.maxRequests) {
+        const retryAfter = Math.ceil((entry.expiresAt - Date.now()) / 1000)
         set.headers['Retry-After'] = retryAfter.toString()
 
         logger.warn(
-          {
-            ip,
-            path: new URL(request.url).pathname,
-            count: currentCount,
-            limit: config.maxRequests,
-          },
+          { ip, path: new URL(request.url).pathname, count: entry.count, limit: config.maxRequests },
           'Rate limit exceeded'
         )
 
@@ -143,7 +112,7 @@ function isValidIpv4(ip: string): boolean {
 
 function getClientIp(request: Request): string {
   const isProduction = process.env.NODE_ENV === 'production'
-  const trustProxy = isProduction && env.TRUSTED_PROXY
+  const trustProxy = isProduction
 
   if (trustProxy) {
     const cfConnectingIp = request.headers.get('cf-connecting-ip')

@@ -6,7 +6,7 @@ import type {
 import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
 import { logger } from '@/shared/logger/logger'
-import { auditHelpers } from '@/modules/activity/events/audit.listener'
+import { auditHelpers } from '@/modules/activity/application/services/audit-logger'
 
 const COMPONENT = 'IndicatorService'
 

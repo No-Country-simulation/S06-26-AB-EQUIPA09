@@ -2,12 +2,8 @@ import type { IUserRepository, IUserService } from '../ports/user.port'
 import type { ISessionService } from '@/modules/auth/application/services/session.service'
 import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
-import { auditHelpers } from '@/modules/activity/events/audit.listener'
+import { auditHelpers } from '@/modules/activity/application/services/audit-logger'
 import { logger } from '@/shared/logger/logger'
-import {
-  emitUserProfileUpdated,
-  emitUserDeleted,
-} from '../../events/user.events'
 
 const COMPONENT = 'UserService'
 
@@ -41,7 +37,6 @@ export const createUserService = (
       if (data.avatar   !== undefined) changes.avatar   = true
 
       Promise.allSettled([
-        emitUserProfileUpdated(userId, changes),
         auditHelpers.update(userId, 'User', userId, { fields: Object.keys(changes) }),
       ]).catch(err => logger.error(err, 'Background tasks failed on updateProfile'))
 
@@ -58,7 +53,6 @@ export const createUserService = (
 
       // Revogar todas as sessões activas do utilizador
       Promise.allSettled([
-        emitUserDeleted(userId),
         auditHelpers.delete(userId, 'User', userId),
         sessionService.revokeAllUserSessions(userId),
       ]).catch(err => logger.error(err, 'Background tasks failed on deleteAccount'))

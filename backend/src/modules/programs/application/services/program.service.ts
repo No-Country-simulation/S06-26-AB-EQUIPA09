@@ -1,13 +1,8 @@
 import type { IProgramRepository, IProgramService } from '../ports/program.port'
 import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
-import { auditHelpers } from '@/modules/activity/events/audit.listener'
+import { auditHelpers } from '@/modules/activity/application/services/audit-logger'
 import { logger } from '@/shared/logger/logger'
-import {
-  emitProgramCreated,
-  emitProgramUpdated,
-  emitProgramDeleted,
-} from '../../events/program.events'
 
 const COMPONENT = 'ProgramService'
 
@@ -24,7 +19,6 @@ export const createProgramService = (
       }
 
       Promise.allSettled([
-        emitProgramCreated(program.id, data.category, data.regionId),
         auditHelpers.staffCreate(staffId, 'Program', program.id, {
           action: 'PROGRAM_CREATED',
           ...changes,
@@ -49,7 +43,6 @@ export const createProgramService = (
       if (data.isActive !== undefined) changes.isActive = data.isActive
 
       Promise.allSettled([
-        emitProgramUpdated(programId, changes),
         auditHelpers.staffUpdate(staffId, 'Program', programId, {
           action: 'PROGRAM_UPDATED',
           fields: Object.keys(changes),
@@ -68,7 +61,6 @@ export const createProgramService = (
       await repository.softDelete(programId)
 
       Promise.allSettled([
-        emitProgramDeleted(programId),
         auditHelpers.staffDelete(staffId, 'Program', programId, {
           action: 'PROGRAM_DELETED',
         }),

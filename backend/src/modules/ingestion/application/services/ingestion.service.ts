@@ -7,7 +7,6 @@ import type { IRegionRepository } from '@/modules/regions/application/ports/regi
 import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
 import { logger } from '@/shared/logger/logger'
-import { emitDataSourceIngested } from '../../events/ingestion.events'
 import type {
   CDRViewRowDTO,
   IngestionResultDTO,
@@ -286,10 +285,6 @@ export const createIngestionService = (
 
     await dataSourceRepo.updateLastIngestedAt(sourceId)
 
-    Promise.allSettled([
-      emitDataSourceIngested(sourceId, recordsInserted, regionsUpserted, stationsUpserted),
-    ]).catch(err => logger.error(err, 'Background tasks failed on runCDRViewPipeline'))
-
     const result: IngestionResultDTO = {
       recordsInserted,
       regionsUpserted,
@@ -327,10 +322,6 @@ export const createIngestionService = (
         .pipeTo(writable, { signal })
 
       await dataSourceRepo.updateLastIngestedAt(sourceId)
-
-      Promise.allSettled([
-        emitDataSourceIngested(sourceId, accum.recordsInserted, accum.regionsUpserted, accum.stationsUpserted),
-      ]).catch(err => logger.error(err, 'Background tasks failed on runCDRViewPipelineStream'))
 
       return Ok({
         recordsInserted: accum.recordsInserted,

@@ -8,13 +8,9 @@ import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
 import { hashPassword, comparePassword } from '@/shared/auth/auth'
 import { getEncryption } from '@/shared/crypto/encryption.service'
-import { auditHelpers } from '@/modules/activity/events/audit.listener'
+import { auditHelpers } from '@/modules/activity/application/services/audit-logger'
 import { logger } from '@/shared/logger/logger'
 import { withTransaction } from '@/db/transaction'
-import {
-  emitUserRegistered,
-  emitUserLogin,
-} from '@/modules/users/events/user.events'
 
 const COMPONENT = 'AuthService'
 
@@ -72,7 +68,6 @@ export const createAuthService = (
       if (!sessionResult.success) return sessionResult
 
       Promise.allSettled([
-        emitUserRegistered(user.id, 'email'),
         auditHelpers.create(user.id, 'User', user.id, { action: 'REGISTER' }),
       ]).catch(err => logger.error(err, 'Background tasks failed on register'))
 
@@ -100,7 +95,6 @@ export const createAuthService = (
       if (!sessionResult.success) return sessionResult
 
       Promise.allSettled([
-        emitUserLogin(found.id, 'email', ipAddress),
         auditHelpers.create(found.id, 'User', found.id, { action: 'LOGIN', ipAddress }),
       ]).catch(err => logger.error(err, 'Background tasks failed on login'))
 

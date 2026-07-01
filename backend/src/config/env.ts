@@ -21,10 +21,6 @@ const envSchema = z.object({
     .transform((v) => v === 'true')
     .default('false'),
 
-  REDIS_HOST: z.string().default('localhost'),
-  REDIS_PORT: z.string().transform(Number).default('6379'),
-  REDIS_PASSWORD: z.string().optional(),
-
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   LOG_PRETTY: z
     .string()

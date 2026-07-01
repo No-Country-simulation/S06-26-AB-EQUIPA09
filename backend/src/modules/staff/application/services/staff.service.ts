@@ -8,13 +8,8 @@ import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
 import { hashPassword, comparePassword } from '@/shared/auth/auth'
 import { getEncryption } from '@/shared/crypto/encryption.service'
-import { auditHelpers } from '@/modules/activity/events/audit.listener'
+import { auditHelpers } from '@/modules/activity/application/services/audit-logger'
 import { logger } from '@/shared/logger/logger'
-import {
-  emitStaffCreated,
-  emitStaffLogin,
-  emitStaffDeactivated,
-} from '../../events/staff.events'
 import 'dotenv/config'
 
 const COMPONENT = 'StaffService'
@@ -49,7 +44,6 @@ export const createStaffService = (
 
       Promise.allSettled([
         repository.updateLastLogin(staff.id),
-        emitStaffLogin(staff.id, ipAddress, userAgent),
         auditHelpers.staffAction(staff.id, 'StaffUser', staff.id, 'STAFF_LOGIN', {
           ipAddress,
           userAgent,
@@ -83,7 +77,6 @@ export const createStaffService = (
       const staff = await repository.create({ ...data, emailHash, passwordHash })
 
       Promise.allSettled([
-        emitStaffCreated(staff.id, requestingStaffId, data.email),
         auditHelpers.staffCreate(requestingStaffId, 'StaffUser', staff.id, {
           action: 'STAFF_CREATED',
           email: data.email,
@@ -115,7 +108,6 @@ export const createStaffService = (
       await repository.update(staffId, { isActive: false })
 
       Promise.allSettled([
-        emitStaffDeactivated(staffId, requestingStaffId),
         auditHelpers.staffUpdate(requestingStaffId, 'StaffUser', staffId, {
           action: 'STAFF_DEACTIVATED',
           deactivatedBy: requestingStaffId,

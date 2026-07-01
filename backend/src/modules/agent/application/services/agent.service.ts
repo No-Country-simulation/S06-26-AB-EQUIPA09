@@ -4,7 +4,6 @@ import { ErrorFactory } from '@/shared/result/factory'
 import { logger } from '@/shared/logger/logger'
 import { SCHEMA_CONTEXT_FOR_AGENT } from '@/db/schema'
 import { sql as pgSql } from '@/db'
-import { emitAgentQuery, emitAgentError } from '../../events/agent.events'
 import { createAgentGuardrails } from './agent-guardrails.service'
 import { createAgentCircuitBreaker } from './agent-circuit-breaker.service'
 import { createAgentTracer } from './agent-tracer.service'
@@ -264,12 +263,6 @@ export const createAgentService = (
           error:        error ?? null,
           ipAddress:    ipAddress ?? null,
         })
-
-        if (error) {
-          emitAgentError(log.id, userId ?? null, error)
-        } else {
-          emitAgentQuery(log.id, userId ?? null, latencyMs, sqlValid, rowsReturned)
-        }
 
         tracer.endSpan(traceId, 'persist-log', { logId: log.id })
         tracer.flushTrace(traceId)

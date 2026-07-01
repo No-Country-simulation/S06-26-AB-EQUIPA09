@@ -8,8 +8,7 @@ import type {
 import type { ListResponse } from '@/shared/types/query.types'
 import type { Result } from '@/shared/result/types'
 import type { AppError } from '@/shared/result/errors'
-import { emitNotificationCreated, emitNotificationRead } from '../../events/notification.events'
-import { auditHelpers } from '@/modules/activity/events/audit.listener'
+import { auditHelpers } from '@/modules/activity/application/services/audit-logger'
 import { broadcastToUser } from '@/ws/ws.controller'
 import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
@@ -166,7 +165,6 @@ export const createNotificationService = (
       }
 
       await Promise.all([
-        emitNotificationCreated(notification.id, notification.userId, notification.type),
         auditHelpers.create(userId, 'Notification', notification.id, {
           type: notification.type,
           priority: notification.priority,
@@ -230,7 +228,6 @@ export const createNotificationService = (
       const notification = await repository.update(notificationId, { isRead: true })
 
       await Promise.all([
-        emitNotificationRead(notificationId, userId),
         auditHelpers.update(userId, 'Notification', notificationId, { isRead: true }),
       ])
 
@@ -262,7 +259,6 @@ export const createNotificationService = (
       await repository.softDelete(notificationId)
 
       await Promise.all([
-        // emitNotificationDeleted(notificationId, userId),
         auditHelpers.delete(userId, 'Notification', notificationId),
       ])
 

@@ -31,7 +31,6 @@ export function createChildLogger(context: Record<string, unknown>): Logger {
 export const appLogger = logger.child({ category: LogCategory.APP });
 export const httpLogger = logger.child({ category: LogCategory.HTTP });
 export const databaseLogger = logger.child({ category: LogCategory.DATABASE });
-export const queueLogger = logger.child({ category: LogCategory.QUEUE });
 export const errorLogger = logger.child({ category: LogCategory.ERROR });
 export const performanceLogger = logger.child({ category: LogCategory.PERFORMANCE });
 export const securityLogger = logger.child({ category: LogCategory.SECURITY });

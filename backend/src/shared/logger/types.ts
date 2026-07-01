@@ -2,7 +2,6 @@ export enum LogCategory {
   APP = 'app',
   HTTP = 'http',
   DATABASE = 'database',
-  QUEUE = 'queue',
   ERROR = 'error',
   PERFORMANCE = 'performance',
   SECURITY = 'security',
