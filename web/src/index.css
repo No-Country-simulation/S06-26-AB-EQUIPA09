@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  /* ---- surfaces ---- */
+  --color-ink-950: #080B11;
+  --color-ink-900: #0D121B;
+  --color-ink-850: #111723;
+  --color-ink-800: #161D2B;
+  --color-ink-700: #1E2738;
+  --color-ink-border: #243047;
+  --color-ink-border-soft: #1A2233;
+
+  /* ---- text ---- */
+  --color-mist-50: #F2F4F8;
+  --color-mist-200: #C7CEDB;
+  --color-mist-400: #8993A8;
+  --color-mist-600: #5C657A;
+
+  /* ---- brand / signal ---- */
+  --color-signal-400: #6EF0D6;
+  --color-signal-500: #3FDCBE;
+  --color-signal-600: #22B79C;
+  --color-signal-glow: #3FDCBE55;
+
+  /* ---- status (coverage semantics) ---- */
+  --color-status-good: #36D399;
+  --color-status-good-soft: #36D39922;
+  --color-status-warn: #F5A742;
+  --color-status-warn-soft: #F5A74222;
+  --color-status-bad: #FB5B4B;
+  --color-status-bad-soft: #FB5B4B22;
+
+  /* ---- type ---- */
+  --font-display: "Fraunces", "Iowan Old Style", serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { background: var(--color-ink-950); }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--color-signal-500); color: #06110D; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-ink-border); border-radius: 999px; border: 2px solid var(--color-ink-950); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-mist-600); }
+
+.leaflet-container { height: 100%; width: 100%; background: #0B0F16 !important; }
+.leaflet-control-attribution { background: rgba(8,11,17,0.7) !important; color: var(--color-mist-400) !important; font-size: 10px !important; }
+.leaflet-control-attribution a { color: var(--color-mist-200) !important; }
+.leaflet-control-zoom a { background: var(--color-ink-800) !important; color: var(--color-mist-200) !important; border-color: var(--color-ink-border) !important; }
+.leaflet-control-zoom a:hover { background: var(--color-ink-700) !important; }
+.leaflet-tooltip { background: var(--color-ink-800) !important; border: 1px solid var(--color-ink-border) !important; color: var(--color-mist-50) !important; border-radius: 10px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.45) !important; }
+.leaflet-tooltip-top:before { border-top-color: var(--color-ink-border) !important; }
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  70% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.signal-ping { animation: pulse-ring 2.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite; }
+
+@keyframes sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.radar-sweep { animation: sweep 6s linear infinite; transform-origin: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-ping, .radar-sweep { animation: none !important; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.4s ease-out both; }
