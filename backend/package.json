@@ -20,7 +20,6 @@
     "clean": "rm -rf dist node_modules .turbo"
   },
   "dependencies": {
-    
     "@bull-board/api": "^6.16.4",
     "@bull-board/elysia": "^6.16.4",
     "@elysiajs/cors": "^1.4.1",
@@ -37,6 +36,7 @@
     "@types/uuid": "^10.0.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.4.2",
+    "bun": "^1.3.14",
     "decimal.js": "^10.6.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
