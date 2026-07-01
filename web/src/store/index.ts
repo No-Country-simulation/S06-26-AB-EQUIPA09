@@ -1,5 +1,18 @@
+import { configureStore } from '@reduxjs/toolkit'
 import { create } from 'zustand'
 import type { Regiao, DadosResponse } from '../types'
+import { rootApi } from './api/root-api'
+
+export const store = configureStore({
+  reducer: {
+    [rootApi.reducerPath]: rootApi.reducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(rootApi.middleware),
+})
+
+export type RootState = ReturnType<typeof store.getState>
+export type AppDispatch = typeof store.dispatch
 
 interface AppStore {
   regiaoSelecionada: Regiao | null
