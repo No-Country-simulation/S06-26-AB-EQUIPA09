@@ -9,12 +9,6 @@ export type UserResponseDTO = {
   id:        string
   email:     string
   name:      string
-  phone:     string | null
-  avatar:    string | null
-  locale:    string
-  timezone:  string | null
-  createdAt: Date
-  updatedAt: Date
 }
 
 type PublicUserShape = Pick<
@@ -30,12 +24,6 @@ export const toPublicUser = (user: PublicUserShape): UserResponseDTO => ({
   id:        user.id,
   email:     user.email,
   name:      user.name,
-  phone:     user.phone,
-  avatar:    user.avatar,
-  locale:    user.locale ?? 'pt',
-  timezone:  user.timezone ?? null,
-  createdAt: user.createdAt,
-  updatedAt: user.updatedAt,
 })
 
 // ─────────────────────────────────────────────

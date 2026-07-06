@@ -28,7 +28,7 @@ export type IndicatorDataResponseDTO = {
   updatedAt: string
 }
 
-const indicatorsApi = rootApi.injectEndpoints({
+export const indicatorsApi = rootApi.injectEndpoints({
   endpoints: (builder) => ({
     listIndicators: builder.query<{ data: IndicatorResponseDTO[]; total: number }, void>({
       query: () => ({ url: '/indicators' }),

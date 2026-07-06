@@ -84,70 +84,105 @@ export const authController = new Elysia({ prefix: '/auth' })
   .use(rateLimitMiddleware(RateLimitPresets.AUTH))
 
   // POST /auth/register
-  .post('/register',
-    async (ctx): Promise<Result<{ user: AuthResponseDTO['user']; refreshToken: string }, AppError>> => {
-      const v = validateWithZod(registerSchema, ctx.body, 'AuthController')
-      if (!v.success) return v
+  .post(
+  '/register',
+  async (
+    ctx
+  ): Promise<
+    Result<
+      {
+        user: AuthResponseDTO['user']
+        accessToken: string
+        refreshToken: string
+      },
+      AppError
+    >
+  > => {
+    const v = validateWithZod(registerSchema, ctx.body, 'AuthController')
+    if (!v.success) return v
 
-      const userAgent = ctx.request.headers.get('user-agent')      ?? undefined
-      const ipAddress = ctx.request.headers.get('x-forwarded-for') ?? undefined
-      const result    = await authSvc.register(v.value, userAgent, ipAddress)
-      if (!result.success) return result
+    const userAgent = ctx.request.headers.get('user-agent') ?? undefined
+    const ipAddress = ctx.request.headers.get('x-forwarded-for') ?? undefined
 
-      setAuthCookie(ctx, result.value.accessToken)
-      return {
-        success: true,
-        value: {
-          user:         result.value.user,
-          refreshToken: result.value.refreshToken,
-        },
-      }
-    },
-    {
-      body: t.Object({
-        email:    t.String(),
-        password: t.String(),
-        name:     t.String(),
-      }),
-      detail: { tags: ['auth'], summary: 'Registar utilizador' },
+    const result = await authSvc.register(v.value, userAgent, ipAddress)
+    if (!result.success) return result
+
+    setAuthCookie(ctx, result.value.accessToken)
+
+    return {
+      success: true,
+      value: {
+        user: result.value.user,
+        accessToken: result.value.accessToken,
+        refreshToken: result.value.refreshToken,
+      },
     }
-  )
-
+  },
+  {
+    body: t.Object({
+      email: t.String(),
+      password: t.String(),
+      name: t.String(),
+    }),
+    detail: {
+      tags: ['auth'],
+      summary: 'Registar utilizador',
+    },
+  }
+)
   // POST /auth/login
-  .post('/login',
-    async (ctx): Promise<Result<{ user: AuthResponseDTO['user']; refreshToken: string }, AppError>> => {
-      const v = validateWithZod(loginSchema, ctx.body, 'AuthController')
-      if (!v.success) return v
+  .post(
+  '/login',
+  async (
+    ctx
+  ): Promise<
+    Result<
+      {
+        user: AuthResponseDTO['user']
+        accessToken: string
+        refreshToken: string
+      },
+      AppError
+    >
+  > => {
+    const v = validateWithZod(loginSchema, ctx.body, 'AuthController')
+    if (!v.success) return v
 
-      const ipAddress = ctx.request.headers.get('x-forwarded-for') ?? undefined
-      const { recordAuthFailure } = await import('@/middlewares/rate-limit.middleware')
+    const ipAddress = ctx.request.headers.get('x-forwarded-for') ?? undefined
+    const { recordAuthFailure } = await import('@/middlewares/rate-limit.middleware')
 
-      const userAgent = ctx.request.headers.get('user-agent') ?? undefined
-      const result = await authSvc.login(v.value, userAgent, ipAddress)
-      if (!result.success) {
-        if (ipAddress) {
-          await recordAuthFailure(v.value.email, ipAddress).catch(() => {})
-        }
-        return result
+    const userAgent = ctx.request.headers.get('user-agent') ?? undefined
+    const result = await authSvc.login(v.value, userAgent, ipAddress)
+
+    if (!result.success) {
+      if (ipAddress) {
+        await recordAuthFailure(v.value.email, ipAddress).catch(() => {})
       }
-
-      setAuthCookie(ctx, result.value.accessToken)
-      return {
-        success: true,
-        value: {
-          user:         result.value.user,
-          refreshToken: result.value.refreshToken,
-        },
-      }
-    },
-    {
-      body: t.Object({
-        email:    t.String(),
-        password: t.String(),
-      }),
-      detail: { tags: ['auth'], summary: 'Login' },
+      return result
     }
-  )
+
+    setAuthCookie(ctx, result.value.accessToken)
+
+    return {
+      success: true,
+      value: {
+        user: result.value.user,
+        accessToken: result.value.accessToken,
+        refreshToken: result.value.refreshToken,
+      },
+    }
+  },
+  {
+    body: t.Object({
+      email: t.String(),
+      password: t.String(),
+    }),
+    detail: {
+      tags: ['auth'],
+      summary: 'Login',
+    },
+  }
+)
 
   // POST /auth/refresh
   .post('/refresh',
