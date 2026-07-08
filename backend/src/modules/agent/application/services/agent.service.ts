@@ -67,6 +67,15 @@ export const createAgentService = (
         return err
       }
 
+      if (!process.env.GROQ_API_KEY) {
+        tracer.endSpan(traceId, 'llm-call', undefined, 'missing_groq_api_key')
+        tracer.flushTrace(traceId)
+        return Err(ErrorFactory.externalService(
+          'GROQ_API_KEY não está configurada no backend',
+          'Groq', undefined, 'configuration', COMPONENT,
+        ))
+      }
+
       const startMs = Date.now()
       let groqModel = DEFAULT_MODEL
       let tokensUsed: number | null = null

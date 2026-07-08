@@ -5,6 +5,7 @@ import { db, closeDatabaseConnection } from '../src/db'
 import { createDataSourceRepository } from '../src/modules/ingestion/infrastructure/persistence/data-source.repository'
 import { createRegionRepository } from '../src/modules/regions/infrastructure/persistence/region.repository'
 import { createCDRViewRecordRepository } from '../src/modules/ingestion/infrastructure/persistence/cdrview-record.repository'
+import { createRegionCoverageRepository } from '../src/modules/coverage/infrastructure/persistence/region-coverage.repository'
 import type { CDRViewRowDTO } from '../src/modules/ingestion/application/dtos/ingestion.dto'
 
 type CsvRow = Record<string, string>
@@ -27,6 +28,7 @@ const files = {
 const dataSourceRepo = createDataSourceRepository(db)
 const regionRepo = createRegionRepository(db)
 const cdrviewRecordRepo = createCDRViewRecordRepository(db)
+const regionCoverageRepo = createRegionCoverageRepository(db)
 
 const required = (file: string) => path.join(CVSS_DIR, file)
 
@@ -122,6 +124,104 @@ const signalFromConcentration = (row: CsvRow) => {
   const drop = floatValue(row.drop_pct_medio, 0)
   const signal = 1 - Math.min(1, congestion * 0.75 + drop * 0.25)
   return Math.max(0, Math.min(1, signal))
+}
+
+type CoverageAccumulator = {
+  regionId: string
+  period: string
+  maxConcentration: number
+  minConcentration: number
+  daytimeSum: number
+  daytimeCount: number
+  nighttimeSum: number
+  nighttimeCount: number
+  signalSum: number
+  signalCount: number
+  totalRecords: number
+}
+
+const coveragePeriod = (dayDate: string) => dayDate.slice(0, 7) || '2026-03'
+
+const addCoverageSample = (
+  accumulators: Map<string, CoverageAccumulator>,
+  regionId: string,
+  period: string,
+  hourOfDay: number,
+  peopleCount: number,
+  signalStrength: number,
+) => {
+  const key = `${regionId}:${period}`
+  const current = accumulators.get(key) ?? {
+    regionId,
+    period,
+    maxConcentration: 0,
+    minConcentration: Number.POSITIVE_INFINITY,
+    daytimeSum: 0,
+    daytimeCount: 0,
+    nighttimeSum: 0,
+    nighttimeCount: 0,
+    signalSum: 0,
+    signalCount: 0,
+    totalRecords: 0,
+  }
+
+  current.maxConcentration = Math.max(current.maxConcentration, peopleCount)
+  current.minConcentration = Math.min(current.minConcentration, peopleCount)
+  current.signalSum += signalStrength
+  current.signalCount++
+  current.totalRecords++
+
+  if (hourOfDay >= 8 && hourOfDay <= 18) {
+    current.daytimeSum += peopleCount
+    current.daytimeCount++
+  } else {
+    current.nighttimeSum += peopleCount
+    current.nighttimeCount++
+  }
+
+  accumulators.set(key, current)
+}
+
+const flushCoverage = async (accumulators: Map<string, CoverageAccumulator>) => {
+  let rowsUpserted = 0
+  let maxAvgConcentration = 0
+  let maxPeakConcentration = 0
+
+  for (const item of accumulators.values()) {
+    const avgConcentration = item.totalRecords > 0
+      ? (item.daytimeSum + item.nighttimeSum) / item.totalRecords
+      : 0
+    maxAvgConcentration = Math.max(maxAvgConcentration, avgConcentration)
+    maxPeakConcentration = Math.max(maxPeakConcentration, item.maxConcentration)
+  }
+
+  for (const item of accumulators.values()) {
+    const baseSignal = item.signalCount > 0 ? item.signalSum / item.signalCount : 0
+    const avgConcentration = item.totalRecords > 0
+      ? (item.daytimeSum + item.nighttimeSum) / item.totalRecords
+      : 0
+    const loadPressure = maxAvgConcentration > 0 ? avgConcentration / maxAvgConcentration : 0
+    const peakPressure = maxPeakConcentration > 0 ? item.maxConcentration / maxPeakConcentration : 0
+    const networkCoverageScore = Math.max(
+      0,
+      Math.min(1, 1 - ((1 - baseSignal) * 0.35 + loadPressure * 0.45 + peakPressure * 0.20))
+    )
+
+    await regionCoverageRepo.upsert({
+      regionId: item.regionId,
+      period: item.period,
+      networkCoverageScore,
+      maxConcentration: item.maxConcentration,
+      minConcentration: Number.isFinite(item.minConcentration) ? item.minConcentration : 0,
+      avgDaytimeConcentration: item.daytimeCount > 0 ? item.daytimeSum / item.daytimeCount : null,
+      avgNighttimeConcentration: item.nighttimeCount > 0 ? item.nighttimeSum / item.nighttimeCount : null,
+      dominantTechnology: '4G',
+      no4gOr5gCoverage: false,
+      totalRecords: item.totalRecords,
+    })
+    rowsUpserted++
+  }
+  return rowsUpserted
 }
 
 async function ensureDataSource(slug: string, name: string, description: string) {
@@ -220,6 +320,7 @@ async function ingestConcentration() {
   let stationsUpserted = 0
   const seenRegions = new Set<string>()
   const seenStations = new Set<string>()
+  const coverageAccumulators = new Map<string, CoverageAccumulator>()
 
   const flush = async () => {
     if (records.length === 0) return
@@ -240,16 +341,26 @@ async function ingestConcentration() {
     }
 
     const period = dateForPeriod(row.day_date, row.periodo)
+    const peopleCount = intValue(row.n_usuarios)
+    const signalStrength = signalFromConcentration(row)
     records.push({
       regionId: region.id,
       stationId: station.id,
       period,
       hourOfDay: period.getUTCHours(),
       dayOfWeek: period.getUTCDay(),
-      peopleCount: intValue(row.n_usuarios),
+      peopleCount,
       networkTechnology: '4G',
-      signalStrength: signalFromConcentration(row),
+      signalStrength,
     })
+    addCoverageSample(
+      coverageAccumulators,
+      region.id,
+      coveragePeriod(row.day_date),
+      period.getUTCHours(),
+      peopleCount,
+      signalStrength,
+    )
 
     if (records.length >= BATCH_SIZE) {
       await flush()
@@ -258,8 +369,9 @@ async function ingestConcentration() {
   }
 
   await flush()
+  const coverageRowsUpserted = await flushCoverage(coverageAccumulators)
   await dataSourceRepo.updateLastIngestedAt(source.id)
-  return { rowsRead, recordsInserted, regionsUpserted, stationsUpserted }
+  return { rowsRead, recordsInserted, regionsUpserted, stationsUpserted, coverageRowsUpserted }
 }
 
 async function registerUnmappedSources() {
@@ -302,7 +414,8 @@ async function main() {
   const concentration = await ingestConcentration()
   console.log(
     `  tensor_concentracao: ${concentration.recordsInserted} registros, ` +
-    `${concentration.regionsUpserted} regioes distintas, ${concentration.stationsUpserted} estacoes distintas`
+    `${concentration.regionsUpserted} regioes distintas, ${concentration.stationsUpserted} estacoes distintas, ` +
+    `${concentration.coverageRowsUpserted} coberturas mensais`
   )
 
   const registered = await registerUnmappedSources()

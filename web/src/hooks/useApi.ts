@@ -11,8 +11,18 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 function mapBackendRegioes(regions: any[], coverages: any[], indicatorsData: any[]): Regiao[] {
   return regions.map((r: any) => {
     const cov = coverages.find((c: any) => c.regionId === r.id || c.region_id === r.id)
-    const score = cov?.coverageScore ?? cov?.coverage_score ?? cov?.coverageRating ?? 0
+    const score = cov?.networkCoverageScore ?? cov?.network_coverage_score ?? cov?.coverageScore ?? cov?.coverage_score ?? cov?.coverageRating ?? 0
     const scoreNorm = score > 1 ? score / 100 : score
+    const concentration =
+      Number(
+        cov?.maxConcentration ??
+        cov?.max_concentration ??
+        r.population ??
+        r.concentracao ??
+        r.populationEstimate ??
+        r.estimatedPopulation ??
+        0
+      )
 
     const nivel: Regiao['cobertura_nivel'] =
       scoreNorm >= 0.65 ? 'boa' : scoreNorm >= 0.35 ? 'atencao' : 'critica'
@@ -69,7 +79,7 @@ function mapBackendRegioes(regions: any[], coverages: any[], indicatorsData: any
       estado: r.state ?? r.estado ?? r.province ?? 'Luanda',
       lat: Number(r.lat ?? r.latitude ?? -8.84),
       lng: Number(r.lng ?? r.longitude ?? 13.29),
-      concentracao: Number(r.population ?? r.concentracao ?? r.populationEstimate ?? 0),
+      concentracao: concentration,
       cobertura_rede: scoreNorm,
       cobertura_nivel: nivel,
       programas_count: Number(r.programsCount ?? r.programs_count ?? 0),
@@ -80,16 +90,26 @@ function mapBackendRegioes(regions: any[], coverages: any[], indicatorsData: any
 
 // Converte resposta do agente para o nosso DadosResponse
 function mapAgentResponse(data: any): DadosResponse {
-  // O backend devolve: { answer, sql, results, sources, queryLogId }
-  const rows: any[] = data.results ?? data.dados ?? []
+  const rows: any[] = data.result ?? data.results ?? data.dados ?? []
   return {
-    resposta_ia: data.answer ?? data.resposta_ia ?? data.response ?? '',
+    resposta_ia: data.aiResponse ?? data.answer ?? data.resposta_ia ?? data.response ?? '',
     dados: rows.map((r: any) => ({
-      regiao: r.region ?? r.regiao ?? r.name ?? r.nome ?? String(r.id ?? ''),
-      valor: Number(r.value ?? r.valor ?? r.coverage ?? 0),
+      regiao: r.region ?? r.regiao ?? r.name ?? r.nome ?? r.municipality ?? r.zone_id ?? String(r.id ?? ''),
+      valor: Number(
+        r.value ??
+        r.valor ??
+        r.coverage ??
+        r.network_coverage_score ??
+        r.networkCoverageScore ??
+        r.people_count ??
+        r.peopleCount ??
+        r.max_concentration ??
+        0
+      ),
       fonte: r.source ?? r.fonte ?? 'Vísent CDRView',
     })),
     fontes: data.sources ?? data.fontes ?? ['Vísent CDRView'],
+    sql_gerado: data.generatedSql ?? data.sql ?? undefined,
   }
 }
 
