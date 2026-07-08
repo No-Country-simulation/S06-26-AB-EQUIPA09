@@ -45,7 +45,7 @@ export function useRegister() {
   const { setAuth } = useAuthStore()
   return useMutation({
     mutationFn: async (data: { name: string; email: string; password: string }) => {
-      const res = await axios.post(`${API}/auth/register`, data)
+      const res = await axios.post(`${API}/auth/register`, data, { withCredentials: true })
       return res.data
     },
     onSuccess: data => {

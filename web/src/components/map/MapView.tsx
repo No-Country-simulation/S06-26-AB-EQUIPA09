@@ -31,7 +31,7 @@ function FitBounds({ regioes }: { regioes: Regiao[] }) {
     if (!regioes.length) return
     const bounds = L.latLngBounds(regioes.map(r => [r.lat, r.lng] as [number, number]))
     map.fitBounds(bounds, { padding: [72, 72], maxZoom: 13 })
-  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key])
 
   return null
 }

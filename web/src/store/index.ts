@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { Dispatch, UnknownAction } from 'redux'
 import type { Regiao, DadosResponse } from '../types'
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
@@ -44,6 +45,13 @@ interface AppStore {
   consultaAtual: string
   setConsultaAtual: (c: string) => void
 }
+
+export type RootState = {
+  auth: AuthState
+  app: AppStore
+}
+
+export type AppDispatch = Dispatch<UnknownAction>
 
 export const useAppStore = create<AppStore>(set => ({
   regiaoSelecionada: null,
