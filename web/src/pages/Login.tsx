@@ -122,6 +122,13 @@ export default function LoginPage() {
               : (mode === 'login' ? 'Entrar' : 'Criar conta')}
           </button>
         </div>
+        <div className="text-center mt-4">
+          
+            <a href="/staff/login"
+            className="font-mono text-[10.5px] text-mist-600 hover:text-mist-400 transition-colors">
+            Acesso staff →
+          </a>
+        </div>
 
         <p className="text-center font-mono text-[10.5px] text-mist-600 mt-5">
           App BiT · Desafio B2G · Angola 2025
