@@ -3,7 +3,10 @@ import type { AppError } from '@/shared/result/errors'
 import type { IUserRepository } from '@/modules/users/application/ports/user.port'
 import type { ISessionService } from './session.service'
 import type { RegisterDTO, LoginDTO, AuthResponseDTO } from '../dtos/auth.dto'
-import { toPublicUser } from '@/modules/users/application/dtos/user.dto'
+// `userRepository` methods already return a public `UserResponseDTO`.
+// Avoid calling `toPublicUser` here because the service receives trimmed objects
+// (or objects with extra fields like `passwordHash`) that don't satisfy the
+// `PublicUserShape` expected by `toPublicUser`.
 import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
 import { hashPassword, comparePassword } from '@/shared/auth/auth'
@@ -74,7 +77,7 @@ export const createAuthService = (
       return Ok({
         accessToken:  sessionResult.value.accessToken,
         refreshToken: sessionResult.value.refreshToken,
-        user: toPublicUser(user),
+        user,
       })
     },
 
@@ -101,7 +104,11 @@ export const createAuthService = (
       return Ok({
         accessToken:  sessionResult.value.accessToken,
         refreshToken: sessionResult.value.refreshToken,
-        user:         toPublicUser(found),
+        user: {
+          id: found.id,
+          email: found.email,
+          name: found.name,
+        },
       })
     },
 
