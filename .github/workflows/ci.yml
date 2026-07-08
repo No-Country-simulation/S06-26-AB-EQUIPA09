@@ -11,7 +11,8 @@ jobs:
       run:
         working-directory: backend
     env:
-      JWT_SECRET: test-secret
+      # JWT_SECRET must be at least 32 characters for tests and runtime
+      JWT_SECRET: CI_TEST_SECRET_0123456789abcdef0123456789AB
       DB_USER: test
       DB_HOST: localhost
       DB_DATABASE: test

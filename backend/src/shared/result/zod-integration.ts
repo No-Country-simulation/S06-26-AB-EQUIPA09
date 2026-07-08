@@ -116,6 +116,9 @@ function formatZodMessage(issue: z.ZodIssue): string {
       return `Tipo inválido: esperado ${issue.expected}, recebido ${issue.received}`;
     
     case 'too_small':
+      // If a custom message was provided in the schema, prefer it.
+      if (issue.message) return issue.message;
+
       if (issue.type === 'string') {
         return `Mínimo de ${issue.minimum} caracteres`;
       }
@@ -141,7 +144,7 @@ function formatZodMessage(issue: z.ZodIssue): string {
     
     case 'invalid_string':
       if (issue.validation === 'email') {
-        return 'E-mail inválido';
+        return 'Email inválido';
       }
       if (issue.validation === 'uuid') {
         return 'ID inválido (formato UUID esperado)';
