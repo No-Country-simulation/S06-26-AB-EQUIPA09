@@ -19,6 +19,12 @@ import { alertController } from './modules/alerts/infrastructure/http/controller
 import { agentController } from './modules/agent/infrastructure/http/controllers/agent.controller'
 import { agentStaffController } from './modules/agent/infrastructure/http/controllers/agent-staff.controller'
 import { notificationController } from './modules/notifications/infrastructure/http/controllers/notification.controller'
+import { createStaffService } from './modules/staff/application/services/staff.service'
+import { createStaffRepository } from './modules/staff/infrastructure/persistence/staff.repository'
+import { createStaffSessionRepository } from './modules/staff/infrastructure/persistence/staff-session.repository'
+import { createStaffActivityLogRepository } from './modules/staff/infrastructure/persistence/staff-activity-log.repository'
+import { createStaffSessionService } from './modules/staff/application/services/staff-session.service'
+import { db } from '@/db'
 
 const app = new Elysia()
 .use(
@@ -133,10 +139,21 @@ const app = new Elysia()
   .use(agentController)
   .use(notificationController)
 
-  .onStart(() => {
+  .onStart(async () => {
     logger.info(`chronus API running on http://localhost:${env.PORT}`)
     if (env.NODE_ENV !== 'production') {
       logger.info(`Swagger docs: http://localhost:${env.PORT}/docs`)
+    }
+
+    try {
+      const staffRepo = createStaffRepository(db)
+      const staffSessionRepo = createStaffSessionRepository(db)
+      const activityLogRepo = createStaffActivityLogRepository(db)
+      const staffSessionSvc = createStaffSessionService(staffSessionRepo)
+      const staffSvc = createStaffService(staffRepo, staffSessionSvc, activityLogRepo)
+      await staffSvc.seed()
+    } catch (error) {
+      logger.error({ err: error }, 'Staff seed failed on startup')
     }
   })
   .onStop(() => {

@@ -15,13 +15,6 @@ const DEFAULT_STAFF_PASSWORD = 'Admin@2025!'
 const DEFAULT_STAFF_NAME = 'Admin'
 
 async function seedStaffUser() {
-  const [{ total }] = await db.select({ total: count() }).from(staffUsers)
-
-  if (total > 0) {
-    console.log(`Seed ignorado: já existe(m) ${total} staff user(s).`)
-    return
-  }
-
   const email = process.env.STAFF_SEED_EMAIL ?? DEFAULT_STAFF_EMAIL
   const password = process.env.STAFF_SEED_PASSWORD ?? DEFAULT_STAFF_PASSWORD
   const name = process.env.STAFF_SEED_NAME ?? DEFAULT_STAFF_NAME
@@ -29,20 +22,33 @@ async function seedStaffUser() {
   const encryption = getEncryption()
   const passwordHash = await hash(password, ARGON2_CONFIG)
 
+  const encryptedEmail = encryption.encrypt(email)
+  const encryptedName = encryption.encrypt(name)
+  const emailHash = encryption.hash(email)
+
   const inserted = await db.insert(staffUsers).values({
-    email:        encryption.encrypt(email),
-    emailHash:    encryption.hash(email),
-    name:         encryption.encrypt(name),
+    email:        encryptedEmail,
+    emailHash,
+    name:         encryptedName,
     passwordHash,
     isActive:     true,
-  }).onConflictDoNothing({ target: staffUsers.emailHash }).returning({ id: staffUsers.id })
+  }).onConflictDoUpdate({
+    target: staffUsers.emailHash,
+    set: {
+      email: encryptedEmail,
+      name: encryptedName,
+      passwordHash,
+      isActive: true,
+      updatedAt: new Date(),
+    },
+  }).returning({ id: staffUsers.id })
 
   if (inserted.length === 0) {
     console.log('Seed ignorado: staff user já existe.')
     return
   }
 
-  console.log(`Staff seed criado com sucesso: ${email}`)
+  console.log(`Staff seed aplicado com sucesso: ${email}`)
 }
 
 seedStaffUser()
