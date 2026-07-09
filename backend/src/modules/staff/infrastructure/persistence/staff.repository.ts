@@ -110,13 +110,27 @@ export const createStaffRepository = (db: Database): IStaffRepository => {
     async update(id, data, tx) {
       return dbExec('update', 'StaffRepository', async () => {
         const conn = tx ?? db
+        const payload = data as Partial<UpdateStaffDTO> & {
+          email?: string
+          emailHash?: string
+          passwordHash?: string
+        }
         const updateData: Record<string, unknown> = { updatedAt: new Date() }
 
-        if (data.name) {
-          updateData.name = encryption.encrypt(data.name)
+        if (payload.name) {
+          updateData.name = encryption.encrypt(payload.name)
         }
-        if (data.isActive !== undefined) {
-          updateData.isActive = data.isActive
+        if (payload.email) {
+          updateData.email = encryption.encrypt(payload.email)
+        }
+        if (payload.emailHash) {
+          updateData.emailHash = payload.emailHash
+        }
+        if (payload.passwordHash) {
+          updateData.passwordHash = payload.passwordHash
+        }
+        if (payload.isActive !== undefined) {
+          updateData.isActive = payload.isActive
         }
 
         const [row] = await conn

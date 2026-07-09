@@ -143,9 +143,6 @@ export const createStaffService = (
 
     // ── Seed ─────────────────────────────────────────────────────────────────
     async seed() {
-      const total = await repository.count()
-      if (total > 0) return
-
       const email    = process.env.STAFF_SEED_EMAIL
       const name     = process.env.STAFF_SEED_NAME
       const password = process.env.STAFF_SEED_PASSWORD
@@ -157,8 +154,19 @@ export const createStaffService = (
 
       const emailHash    = encryption.hash(email)
       const passwordHash = await hashPassword(password)
+      const existing = await repository.findByEmailHash(emailHash)
+
+      if (existing) {
+        const updated = await repository.update(existing.id, { email, name, emailHash, passwordHash, isActive: true })
+        await auditHelpers.staffCreate(updated.id, 'StaffUser', updated.id, {
+          action: 'STAFF_SEEDED',
+          email,
+        })
+        logger.info({ email }, 'Staff seed atualizado com sucesso')
+        return
+      }
+
       const staff = await repository.create({ email, name, password, emailHash, passwordHash })
-      console.log(staff)
       await auditHelpers.staffCreate(staff.id, 'StaffUser', staff.id, {
         action: 'STAFF_SEEDED',
         email,
