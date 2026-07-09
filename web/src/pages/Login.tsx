@@ -20,7 +20,7 @@ export default function LoginPage() {
       } else {
         await register.mutateAsync({ name: form.name, email: form.email, password: form.password })
       }
-      navigate('/')
+      navigate('/app')
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? 'Erro ao autenticar. Tente novamente.'
       setError(msg)

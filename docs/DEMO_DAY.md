@@ -49,9 +49,9 @@ Se a pasta estiver noutro local:
 bun run ingest:cvss /caminho/para/cvss
 ```
 
-### Upload pelo front
+### Caminho simples pelo front
 
-Existe upload no front em:
+Também é possível alimentar os dados diretamente pelo front em:
 
 ```txt
 /staff/ingestion
@@ -60,16 +60,51 @@ Existe upload no front em:
 Fluxo:
 
 1. Entrar como staff.
-2. Criar um `data source`.
-3. Fazer upload de um CSV.
+2. Abrir o painel **Upload CVSS**.
+3. Selecionar os CSVs originais da pasta `cvss/`.
+4. Enviar pelo menos:
+   - `antenas_flp.csv` ou `antenas_flp (1).csv`;
+   - `tensor_concentracao.csv`.
+5. Opcionalmente, enviar também:
+   - `tensor_fluxo_vias.csv`;
+   - `tensor_od.csv`;
+   - `tensor_tempo_deslocamento.csv`;
+   - `trajetos_comuns.csv` ou `trajetos_comuns (1).csv`;
+   - `sumario_kanon.csv` ou `sumario_kanon (1).csv`.
 
-Limitação importante: o upload pelo front chama `/staff/data-sources/:id/trigger-stream` e espera o formato CDRView normalizado:
+O endpoint usado pelo front é:
 
-```csv
-zone_id,name,municipality,state,country,lat,lng,station_id,technology,carrier,power_dbm,period,people_count,network_technology,signal_strength,hour_of_day,day_of_week,estimated_population,area_km2
+```txt
+POST /staff/cvss/upload
 ```
 
-Os ficheiros nativos da pasta `cvss/`, como `tensor_concentracao.csv`, `tensor_od.csv` e `tensor_fluxo_vias.csv`, não devem ser enviados diretamente por esse upload sem transformação. Para eles, usar `bun run ingest:cvss`.
+Esse endpoint chama o mesmo serviço usado por `bun run ingest:cvss`. Ou seja, a ingestão por terminal e a ingestão pelo front seguem o mesmo processo:
+
+- criam/atualizam as regiões em `regions`;
+- criam/atualizam as antenas em `base_stations`;
+- inserem concentração em `cdrview_records`;
+- calculam agregados mensais em `region_coverage`;
+- registam as fontes CVSS restantes em `data_sources`.
+
+O upload antigo por data source continua disponível para CSVs já normalizados no formato CDRView, mas o caminho recomendado para a demo é o **Upload CVSS**, porque aceita os ficheiros originais.
+
+### Como vender isto aos jurados
+
+Frase curta:
+
+> Antes, a ingestão dependia de um comando técnico no terminal. Agora qualquer utilizador staff consegue carregar os CSVs originais pela interface, e o sistema executa exatamente o mesmo pipeline validado do backend.
+
+Mensagem principal:
+
+> Isto reduz fricção operacional: o gestor não precisa conhecer Bun, scripts ou formato interno das tabelas. Ele só faz upload dos ficheiros que recebeu, e o sistema transforma esses CSVs técnicos em mapa, cobertura, ranking e consultas por IA.
+
+Pontos fortes para mencionar:
+
+- **Usabilidade:** o processo deixa de depender de um programador.
+- **Consistência:** front e terminal usam o mesmo serviço de ingestão, evitando duas lógicas diferentes.
+- **Rastreabilidade:** as fontes carregadas ficam registadas em `data_sources`.
+- **Decisão pública:** depois do upload, os dados aparecem no dashboard, mapa, cobertura mensal e agente IA.
+- **MVP realista:** o produto já cobre uma tarefa operacional completa: receber CSVs, ingerir, calcular indicadores e disponibilizar análise.
 
 ## Checklist antes da apresentação
 
@@ -77,7 +112,7 @@ Os ficheiros nativos da pasta `cvss/`, como `tensor_concentracao.csv`, `tensor_o
 2. Frontend ligado.
 3. Postgres com migrations aplicadas.
 4. Staff seed criado.
-5. `bun run ingest:cvss` executado com sucesso.
+5. Dados CVSS carregados pelo Upload CVSS no front ou por `bun run ingest:cvss`.
 6. `GROQ_API_KEY` configurada no `.env` do backend.
 7. Confirmar que `/regions`, `/coverage` e `/agent/query` respondem.
 
@@ -101,6 +136,10 @@ Mostrar:
 Mensagem principal:
 
 > O sistema identifica onde há mais pessoas afetadas e onde a infraestrutura digital tem maior défice.
+
+Se quiser mostrar a ingestão antes do dashboard:
+
+> Reparem que não estou a preparar a base manualmente. Entro como staff, envio os CSVs originais e o sistema cria as regiões, antenas, concentração e cobertura automaticamente. Isto é importante porque aproxima a ferramenta de um fluxo real de operação pública.
 
 ### 1:40–2:40 — Mapa
 
@@ -162,4 +201,3 @@ Depois da ingestão `cvss`, não devem ficar zerados:
 - concentração;
 - cobertura mensal;
 - data sources.
-

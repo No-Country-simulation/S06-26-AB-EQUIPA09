@@ -3,7 +3,13 @@ import { db } from '@/db'
 import { createDataSourceRepository } from '../../persistence/data-source.repository'
 import { createCDRViewRecordRepository } from '../../persistence/cdrview-record.repository'
 import { createRegionRepository } from '@/modules/regions/infrastructure/persistence/region.repository'
+import { createRegionCoverageRepository } from '@/modules/coverage/infrastructure/persistence/region-coverage.repository'
 import { createIngestionService } from '@/modules/ingestion/application/services/ingestion.service'
+import {
+  createCvssIngestionService,
+  type CvssIngestionResult,
+  type CvssUploadedFile,
+} from '@/modules/ingestion/application/services/cvss-ingestion.service'
 import {
   staffAuthMiddleware,
   getStaffAuth,
@@ -30,7 +36,14 @@ import type { ListResponse } from '../../../application/ports/ingestion.port'
 const dataSourceRepo = createDataSourceRepository(db)
 const cdrviewRecordRepo = createCDRViewRecordRepository(db)
 const regionRepo = createRegionRepository(db)
+const regionCoverageRepo = createRegionCoverageRepository(db)
 const ingestionSvc = createIngestionService(dataSourceRepo, regionRepo, cdrviewRecordRepo)
+const cvssIngestionSvc = createCvssIngestionService(
+  dataSourceRepo,
+  regionRepo,
+  cdrviewRecordRepo,
+  regionCoverageRepo,
+)
 
 export const ingestionController = new Elysia({ prefix: '/staff' })
   .use(staffAuthMiddleware())
@@ -142,5 +155,39 @@ export const ingestionController = new Elysia({ prefix: '/staff' })
       type: 'none',
       params: t.Object({ id: t.String() }),
       detail: { tags: ['ingestion'], summary: 'Executar pipeline de ingestão CDRView via streaming (CSV)' },
+    }
+  )
+
+  .post('/cvss/upload',
+    async ({ staffAuth, request }): Promise<Result<CvssIngestionResult, AppError>> => {
+      getStaffAuth({ staffAuth })
+
+      try {
+        const formData = await request.formData()
+        const uploaded: CvssUploadedFile[] = []
+
+        for (const value of formData.values()) {
+          if (!(value instanceof File)) continue
+          if (!value.name.toLowerCase().endsWith('.csv')) continue
+
+          uploaded.push({
+            name: value.name,
+            content: await value.text(),
+          })
+        }
+
+        if (uploaded.length === 0) {
+          return Err(ErrorFactory.validation('Selecione pelo menos um ficheiro CSV.', [], 'IngestionController'))
+        }
+
+        const result = await cvssIngestionSvc.ingestUploadedFiles(uploaded)
+        return { success: true, value: result }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Falha na ingestão CVSS.'
+        return Err(ErrorFactory.validation(message, [], 'IngestionController'))
+      }
+    },
+    {
+      detail: { tags: ['ingestion'], summary: 'Executar ingestão CVSS por upload de CSVs' },
     }
   )

@@ -16,7 +16,7 @@ export default function PriorityRanking({ regioes }: { regioes: Regiao[] }) {
 
   function investigar(r: Regiao) {
     setRegiaoSelecionada(r)
-    navigate('/mapa')
+    navigate('/app/mapa')
   }
 
   return (

@@ -36,7 +36,12 @@ O resultado é um **ranking explicável**: cada região aparece com o seu score 
 - **Comparação região vs. média nacional**: ao selecionar uma região no mapa, o painel lateral mostra um radar chart (Recharts) sobreposto à média nacional por categoria — torna visível, de relance, *onde* uma região está pior do que a média do país, não apenas *que valor* tem cada indicador.
 - **Snapshot ao vivo na sidebar**: contagem de regiões, regiões críticas e cobertura média sempre visíveis, sem precisar de navegar até ao Dashboard.
 - **Consulta em linguagem natural**: pergunta-se em português corrente (ex. *"Onde faltam programas de formação para jovens de baixa renda?"*) e o agente devolve uma resposta com evidências e tabela de dados de suporte.
+- **Upload CVSS pelo front**: a equipa staff pode enviar os CSVs originais pela interface, sem terminal. O backend usa o mesmo serviço do comando `bun run ingest:cvss`, mantendo consistência entre demo técnica e uso real.
 - **Mapa robusto a qualquer dataset**: em vez de um centro fixo, o mapa ajusta automaticamente o enquadramento (`FitBounds`) às coordenadas das regiões recebidas — funciona com qualquer cidade/território sem alterar código.
+
+Para a apresentação, esta é uma mensagem forte:
+
+> O SQLens não é só um dashboard bonito em cima de dados preparados por programadores. Ele já inclui um fluxo operacional simples: o staff faz upload dos CSVs recebidos, o sistema ingere, calcula cobertura e torna os dados consultáveis no mapa e no agente IA.
 
 ## Stack
 
