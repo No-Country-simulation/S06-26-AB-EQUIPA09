@@ -81,6 +81,12 @@ bun dev          # com hot-reload
 bun src/index.ts # sem hot-reload
 ```
 
+Nota: se iniciar a partir da raiz do repositório, use o wrapper `run-backend.sh` para garantir que o processo é executado no diretório `backend` e que o ficheiro `.env` é carregado:
+
+```bash
+./run-backend.sh
+```
+
 Servidor em `http://localhost:3080`, documentação Swagger em `http://localhost:3080/docs`.
 
 ### Scripts
@@ -474,6 +480,7 @@ Ver `.env` na raiz do projeto.
 | `DB_USER` | Sim | User da BD |
 | `DB_PASSWORD` | Sim | Password |
 | `DB_DATABASE` | Sim | Nome da BD (`chronusv2`) |
+| `DATABASE_URL` | Não | Full connection string (ex.: Neon). If present, it overrides DB_* settings |
 | `JWT_SECRET` | Sim | Mínimo 32 caracteres |
 | `REDIS_HOST` | Sim | Host do Valkey/Redis |
 | `REDIS_PORT` | Sim | Porta (6379) |
@@ -484,3 +491,30 @@ Ver `.env` na raiz do projeto.
 | `CORS_ORIGINS` | Sim | Origens permitidas (separadas por vírgula) |
 
 **Porquê o modelo LLM vem do `.env` e não está hardcoded:** o código já teve `DEFAULT_MODEL = 'mixtral-8x7b-32768'` fixo no código-fonte. Esse modelo foi descontinuado pela Groq sem aviso. Ler de `process.env.GROQ_MODEL` permite trocar de modelo editando uma variável, sem recompilar nem fazer deploy de código novo.
+
+### Usando uma base de dados Neon (hosted)
+
+Passos resumidos para migrar a base de dados local para o Neon e executar as migrações:
+
+1. Crie um projecto no Neon (https://console.neon.tech/) e, depois, crie um branch / database.
+2. Copie a connection string fornecida pelo Neon (algo como `postgresql://user:pass@xxx.neon.tech:5432/dbname?sslmode=require`).
+3. Defina essa string como `DATABASE_URL` nas variáveis de ambiente do seu ambiente de execução (local `.env`, CI, ou variáveis do deploy). Alternativamente, use `NEON_DATABASE_URL`.
+4. Certifique-se que `DB_SSL=true` ou que a query string contenha `sslmode=require`.
+5. Execute as migrações apontando para o Neon:
+
+```bash
+# no terminal, com a env carregada (ou export DATABASE_URL=...)
+bun db:migrate
+```
+
+6. Opcional: correr seed
+
+```bash
+bun run db:seed
+```
+
+7. Inicie a aplicação; ela passará a usar exclusivamente a base de dados remota (Neon) enquanto `DATABASE_URL` estiver presente.
+
+Notas:
+- Não inclua credenciais reais no repositório. Use secrets no CI / deploy.
+- O código já suporta `DATABASE_URL` e `NEON_DATABASE_URL`; se estes estiverem presentes, eles têm prioridade sobre `DB_*`.

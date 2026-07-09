@@ -5,11 +5,14 @@ const envSchema = z.object({
   PORT: z.string().transform(Number).default('3000'),
   METRICS_PORT: z.string().transform(Number).default('9091'),
   JWT_SECRET: z.string().min(32),
-  DB_USER: z.string().min(1, 'DB_USER is required'),
-  DB_HOST: z.string().min(1, 'DB_HOST is required'),
-  DB_DATABASE: z.string().min(1, 'DB_DATABASE is required'),
-  DB_PASSWORD: z.string().min(1, 'DB_PASSWORD is required'),
+  DATABASE_URL: z.string().optional(),
+  DB_USER: z.string().optional(),
+  DB_HOST: z.string().optional(),
+  DB_DATABASE: z.string().optional(),
+  DB_PASSWORD: z.string().optional(),
   DB_PORT: z.string().transform(Number).default('5432'),
+  DB_SSL: z.string().optional(),
+  DB_MAX_CONNECTIONS: z.string().optional(),
   COOKIE_DOMAIN: z.string().optional(),
   APP_URL: z.string(),
   CORS_ORIGINS: z
@@ -32,6 +35,18 @@ const envSchema = z.object({
     .default('false'),
   SIGNED_URL_SECRET: z.string(),
   STORAGE_DRIVER: z.string().default('local')
+})
+
+// Require either a full `DATABASE_URL` or the DB_* components
+envSchema.superRefine((env, ctx) => {
+  const hasUrl = typeof env.DATABASE_URL === 'string' && env.DATABASE_URL.length > 0
+  const hasParts = env.DB_USER && env.DB_HOST && env.DB_DATABASE && env.DB_PASSWORD
+  if (!hasUrl && !hasParts) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Either DATABASE_URL or DB_USER, DB_HOST, DB_DATABASE and DB_PASSWORD must be provided'
+    })
+  }
 })
 
 export type Env = z.infer<typeof envSchema>
