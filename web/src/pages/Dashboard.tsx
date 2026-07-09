@@ -72,7 +72,7 @@ export default function Dashboard() {
               <span className="w-1.5 h-1.5 rounded-full bg-signal-400" />
               Consulta rápida
             </h2>
-            <AIQueryBar compact onResposta={() => navigate('/consulta')} />
+            <AIQueryBar compact onResposta={() => navigate('/app/consulta')} />
           </div>
 
           <div className="col-span-3 grid grid-cols-5 gap-3">
@@ -126,7 +126,7 @@ export default function Dashboard() {
       <div className="bg-ink-900 rounded-2xl border border-ink-border-soft overflow-hidden">
         <div className="px-5 py-3.5 border-b border-ink-border-soft flex items-center justify-between">
           <h2 className="text-[13px] font-medium text-mist-200">Regiões</h2>
-          <button onClick={() => navigate('/mapa')} className="text-[12px] text-signal-400 hover:text-signal-500 transition-colors font-medium">
+          <button onClick={() => navigate('/app/mapa')} className="text-[12px] text-signal-400 hover:text-signal-500 transition-colors font-medium">
             Ver no mapa →
           </button>
         </div>

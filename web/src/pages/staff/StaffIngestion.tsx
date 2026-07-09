@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react'
 import StaffShell from '../../components/staff/StaffShell'
-import { type DataSource, useCreateDataSource, useStaffDataSources, useUploadCSV } from '../../hooks/useStaffApi'
+import {
+  type CvssIngestionResult,
+  type DataSource,
+  useCreateDataSource,
+  useStaffDataSources,
+  useUploadCSV,
+  useUploadCvssCSVs,
+} from '../../hooks/useStaffApi'
 
 const slugify = (value: string) =>
   value
@@ -9,6 +16,85 @@ const slugify = (value: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+
+function CvssUploadPanel() {
+  const uploadCvss = useUploadCvssCSVs()
+  const [message, setMessage] = useState('')
+  const [result, setResult] = useState<CvssIngestionResult | null>(null)
+
+  async function handleFiles(files?: FileList | null) {
+    const selected = Array.from(files ?? [])
+    if (selected.length === 0) return
+
+    setMessage('')
+    setResult(null)
+    try {
+      const response = await uploadCvss.mutateAsync(selected)
+      setResult(response)
+      setMessage('Ingestão CVSS concluída.')
+    } catch (err: any) {
+      setMessage(err?.response?.data?.error?.message ?? err?.response?.data?.message ?? 'Falha na ingestão CVSS.')
+    }
+  }
+
+  return (
+    <section className="bg-ink-900 rounded-2xl border border-ink-border-soft p-5 mb-5">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-[15px] font-semibold text-mist-50 mb-1">Upload CVSS</h2>
+          <p className="text-[13px] text-mist-500">
+            Envie os CSVs originais. O fluxo usa a mesma ingestão do comando bun run ingest:cvss.
+          </p>
+          <p className="text-[11px] text-mist-600 mt-2">
+            Obrigatórios: antenas_flp.csv e tensor_concentracao.csv.
+          </p>
+        </div>
+        <label className="cursor-pointer rounded-lg bg-signal-500 hover:bg-signal-400 text-ink-950 text-[13px] font-medium px-4 py-2 text-center">
+          {uploadCvss.isPending ? 'A processar…' : 'Selecionar CSVs'}
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            multiple
+            className="hidden"
+            disabled={uploadCvss.isPending}
+            onChange={e => handleFiles(e.target.files)}
+          />
+        </label>
+      </div>
+
+      {message && (
+        <p className={`text-[13px] mt-4 ${result ? 'text-status-good' : 'text-status-bad'}`}>
+          {message}
+        </p>
+      )}
+
+      {result && (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+          <div className="rounded-lg border border-ink-border bg-ink-850 px-3 py-2">
+            <p className="text-[11px] text-mist-600">Registos</p>
+            <p className="text-[16px] font-semibold text-mist-50">{result.recordsInserted}</p>
+          </div>
+          <div className="rounded-lg border border-ink-border bg-ink-850 px-3 py-2">
+            <p className="text-[11px] text-mist-600">Regiões</p>
+            <p className="text-[16px] font-semibold text-mist-50">{result.regionsUpserted}</p>
+          </div>
+          <div className="rounded-lg border border-ink-border bg-ink-850 px-3 py-2">
+            <p className="text-[11px] text-mist-600">Estações</p>
+            <p className="text-[16px] font-semibold text-mist-50">{result.stationsUpserted}</p>
+          </div>
+          <div className="rounded-lg border border-ink-border bg-ink-850 px-3 py-2">
+            <p className="text-[11px] text-mist-600">Coberturas</p>
+            <p className="text-[16px] font-semibold text-mist-50">{result.coverageRowsUpserted}</p>
+          </div>
+          <div className="rounded-lg border border-ink-border bg-ink-850 px-3 py-2">
+            <p className="text-[11px] text-mist-600">Fontes</p>
+            <p className="text-[16px] font-semibold text-mist-50">{result.registeredSources}</p>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
 
 function DataSourceRow({ source }: { source: DataSource }) {
   const upload = useUploadCSV(source.id)
@@ -87,6 +173,8 @@ export default function StaffIngestion() {
 
   return (
     <StaffShell title="Ingestão de Dados">
+      <CvssUploadPanel />
+
       <div className="mb-5 flex items-center justify-between gap-4">
         <div>
           <p className="text-[13px] text-mist-400">Fontes registadas para pipelines de ingestão.</p>

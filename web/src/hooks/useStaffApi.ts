@@ -42,6 +42,15 @@ export type DataSource = {
   updatedAt?: string
 }
 
+export type CvssIngestionResult = {
+  recordsInserted: number
+  regionsUpserted: number
+  stationsUpserted: number
+  coverageRowsUpserted: number
+  registeredSources: number
+  filesProcessed: string[]
+}
+
 export type Indicator = {
   id: string
   slug: string
@@ -166,6 +175,19 @@ export function useUploadCSV(id: string) {
         headers: { 'Content-Type': 'text/csv' },
       })
       return unwrap(data)
+    },
+    onSuccess: () => invalidateStaff(queryClient, ['staffDataSources']),
+  })
+}
+
+export function useUploadCvssCSVs() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const formData = new FormData()
+      files.forEach(file => formData.append('files', file))
+      const { data } = await staffApi.post('/staff/cvss/upload', formData)
+      return unwrap<CvssIngestionResult>(data)
     },
     onSuccess: () => invalidateStaff(queryClient, ['staffDataSources']),
   })

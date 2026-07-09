@@ -21,7 +21,7 @@ export default function CoverageRadar({ regioes }: { regioes: Regiao[] }) {
 
   function go(r: Regiao) {
     setRegiaoSelecionada(r)
-    navigate('/mapa')
+    navigate('/app/mapa')
   }
 
   const pontos = regioes.map((r, i) => {

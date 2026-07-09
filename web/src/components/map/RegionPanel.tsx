@@ -26,7 +26,7 @@ export default function RegionPanel({ regiao, todasRegioes = [] }: Props) {
 
   function consultarRegiao() {
     setConsultaAtual(`Quais são os principais desafios de inclusão digital em ${regiao.nome}?`)
-    navigate('/consulta')
+    navigate('/app/consulta')
   }
 
   const comparativo = regiao.indicadores.map(ind => ({

@@ -3,10 +3,10 @@ import { useAuthStore } from '../../store'
 import { useLogout } from '../../hooks/useAuth'
 
 const NAV = [
-  { to: '/', label: 'Visão Geral', icon: '▦', end: true },
-  { to: '/mapa', label: 'Mapa de Cobertura', icon: '◎', end: false },
-  { to: '/consulta', label: 'Consulta IA', icon: '✦', end: false },
-  { to: '/perfil', label: 'Perfil', icon: '◉', end: false },
+  { to: '/app', label: 'Visão Geral', icon: '▦', end: true },
+  { to: '/app/mapa', label: 'Mapa de Cobertura', icon: '◎', end: false },
+  { to: '/app/consulta', label: 'Consulta IA', icon: '✦', end: false },
+  { to: '/app/perfil', label: 'Perfil', icon: '◉', end: false },
 ]
 
 export default function Layout() {

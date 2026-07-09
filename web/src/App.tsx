@@ -4,6 +4,7 @@ import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Mapa from './pages/Mapa'
 import Consulta from './pages/Consulta'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import Profile from './pages/Profile'
@@ -23,6 +24,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/staff/login" element={<StaffLogin />} />
           <Route path="/staff/dashboard" element={
@@ -50,10 +52,10 @@ export default function App() {
               <Layout />
             </ProtectedRoute>
           }>
-            <Route index element={<Dashboard />} />
-            <Route path="mapa" element={<Mapa />} />
-            <Route path="consulta" element={<Consulta />} />
-            <Route path="perfil" element={<Profile />} />
+            <Route path="/app" element={<Dashboard />} />
+            <Route path="/app/mapa" element={<Mapa />} />
+            <Route path="/app/consulta" element={<Consulta />} />
+            <Route path="/app/perfil" element={<Profile />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
