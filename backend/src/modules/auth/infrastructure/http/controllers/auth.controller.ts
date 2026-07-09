@@ -31,48 +31,28 @@ const authSvc     = createAuthService(userRepo, sessionSvc)
 
 const setAuthCookie = (ctx: Context, token: string) => {
   const isProduction = process.env.NODE_ENV === 'production'
-  const host = ctx.request.headers.get('host')
-  const isLocalhost = host?.includes('localhost') || host?.includes('127.0.0.1')
-  
-  let domain: string | undefined
-  if (isProduction && !isLocalhost) {
-    domain = host?.includes('.') ? host.substring(host.indexOf('.') + 1) : undefined
-  }
-  
+
   ctx.cookie.auth_token.set({
     value:    token,
     httpOnly: true,
     secure:   isProduction,
-    sameSite: 'lax',
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge:   2 * 24 * 3600,
     path:     '/',
-    domain:   domain,
   })
 }
  
 const removeAuthCookie = (ctx: Context) => {
   const isProduction = process.env.NODE_ENV === 'production'
-  const host = ctx.request.headers.get('host')
-  const isLocalhost = host?.includes('localhost') || host?.includes('127.0.0.1')
-  
-  let domain: string | undefined
-  if (isProduction && !isLocalhost) {
-    domain = host?.includes('.') ? host.substring(host.indexOf('.') + 1) : undefined
-  }
-  
-  if (domain || isLocalhost) {
-    ctx.cookie.auth_token.set({
-      value:    '',
-      httpOnly: true,
-      secure:   isProduction,
-      sameSite: 'lax',
-      maxAge:   0,
-      path:     '/',
-      domain:   domain,
-    })
-  } else {
-    ctx.cookie.auth_token.remove()
-  }
+
+  ctx.cookie.auth_token.set({
+    value:    '',
+    httpOnly: true,
+    secure:   isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    maxAge:   0,
+    path:     '/',
+  })
 }
  
 

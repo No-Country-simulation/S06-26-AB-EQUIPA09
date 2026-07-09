@@ -43,48 +43,28 @@ staffSvc.seed().catch(err => console.error('Seed failed', err)).then(() => conso
 // ── Cookie helpers ────────────────────────────────────────────────────────────
 const setStaffCookie = (ctx: Context, token: string) => {
   const isProduction = process.env.NODE_ENV === 'production'
-  const host = ctx.request.headers.get('host')
-  const isLocalhost = host?.includes('localhost') || host?.includes('127.0.0.1')
-  
-  let domain: string | undefined
-  if (isProduction && !isLocalhost) {
-    domain = host?.includes('.') ? host.substring(host.indexOf('.') + 1) : undefined
-  }
-  
+
   ctx.cookie.staff_token.set({
     value:    token,
     httpOnly: true,
     secure:   isProduction,
-    sameSite: 'lax',
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge:   15 * 60,
     path:     '/',
-    domain,
   })
 }
 
 const removeStaffCookie = (ctx: Context) => {
   const isProduction = process.env.NODE_ENV === 'production'
-  const host = ctx.request.headers.get('host')
-  const isLocalhost = host?.includes('localhost') || host?.includes('127.0.0.1')
-  
-  let domain: string | undefined
-  if (isProduction && !isLocalhost) {
-    domain = host?.includes('.') ? host.substring(host.indexOf('.') + 1) : undefined
-  }
-  
-  if (domain || isLocalhost) {
-    ctx.cookie.staff_token.set({
-      value:    '',
-      httpOnly: true,
-      secure:   isProduction,
-      sameSite: 'lax',
-      maxAge:   0,
-      path:     '/',
-      domain,
-    })
-  } else {
-    ctx.cookie.staff_token.remove()
-  }
+
+  ctx.cookie.staff_token.set({
+    value:    '',
+    httpOnly: true,
+    secure:   isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    maxAge:   0,
+    path:     '/',
+  })
 }
 
 // ── Controller ────────────────────────────────────────────────────────────────
