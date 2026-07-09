@@ -7,6 +7,8 @@ import "dotenv/config"
 const rawDatabaseUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || ''
 const DB_SSL = process.env.DB_SSL === 'true' || /sslmode=require/.test(rawDatabaseUrl)
 const DB_MAX_CONNECTIONS = Number(process.env.DB_MAX_CONNECTIONS) || 10
+const DB_CONNECT_TIMEOUT = Number(process.env.DB_CONNECT_TIMEOUT) || 30
+const DB_IDLE_TIMEOUT = Number(process.env.DB_IDLE_TIMEOUT) || 60
 
 let connectionString = rawDatabaseUrl
 if (!connectionString) {
@@ -21,8 +23,8 @@ if (!connectionString) {
 
 export const sql = postgres(connectionString, {
   max: DB_MAX_CONNECTIONS,
-  idle_timeout: 20,
-  connect_timeout: 10,
+  idle_timeout: DB_IDLE_TIMEOUT,
+  connect_timeout: DB_CONNECT_TIMEOUT,
   ssl: DB_SSL ? { rejectUnauthorized: false } : false,
   onnotice: () => {},
 })

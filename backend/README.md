@@ -81,6 +81,12 @@ bun dev          # com hot-reload
 bun src/index.ts # sem hot-reload
 ```
 
+Nota: se iniciar a partir da raiz do repositório, use o wrapper `run-backend.sh` para garantir que o processo é executado no diretório `backend` e que o ficheiro `.env` é carregado:
+
+```bash
+./run-backend.sh
+```
+
 Servidor em `http://localhost:3080`, documentação Swagger em `http://localhost:3080/docs`.
 
 ### Scripts
