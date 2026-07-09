@@ -10,8 +10,9 @@ export default defineConfig({
   // Database driver
   dialect: 'postgresql',
   
-  // Database connection
-  dbCredentials: {
+  // Database connection — prefer a full connection string (Neon) if present
+  connectionString: process.env.DATABASE_URL || process.env.NEON_DATABASE_URL || undefined,
+  dbCredentials: process.env.DATABASE_URL || process.env.NEON_DATABASE_URL ? undefined : {
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT) || 5432,
     user: process.env.DB_USER || 'postgres',
