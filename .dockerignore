@@ -1,0 +1,9 @@
+.git
+.env
+.env.*
+!.env.production.example
+**/node_modules
+web
+cvss
+docs
+README*.md
