@@ -1,5 +1,4 @@
 import { hash } from '@node-rs/argon2'
-import { count } from 'drizzle-orm'
 import { db, closeDatabaseConnection } from './index'
 import { staffUsers } from './schema'
 import { getEncryption } from '../shared/crypto/encryption.service'

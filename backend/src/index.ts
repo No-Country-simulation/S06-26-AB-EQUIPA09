@@ -76,10 +76,9 @@ const app = new Elysia()
     })
   )
 
-  // Swagger apenas em desenvolvimento
+  // A documentação é publicada para permitir a verificação do serviço em produção.
   .use(
-    env.NODE_ENV !== 'production'
-      ? swagger({
+    swagger({
           documentation: {
             info: {
               title: 'BiT B2G API',
@@ -108,7 +107,6 @@ const app = new Elysia()
           },
           path: '/docs',
         })
-      : (app: Elysia) => app
   )
 
   .use(resultMiddleware())
@@ -141,9 +139,7 @@ const app = new Elysia()
 
   .onStart(async () => {
     logger.info(`chronus API running on http://localhost:${env.PORT}`)
-    if (env.NODE_ENV !== 'production') {
-      logger.info(`Swagger docs: http://localhost:${env.PORT}/docs`)
-    }
+    logger.info(`Swagger docs: http://localhost:${env.PORT}/docs`)
 
     try {
       const staffRepo = createStaffRepository(db)
@@ -194,6 +190,9 @@ const app = new Elysia()
     return error
   })
 
-  .listen(env.PORT)
+  .listen({
+    hostname: '0.0.0.0',
+    port: env.PORT,
+  })
 
 export type App = typeof app

@@ -2,7 +2,7 @@ import { eq, count, asc, and } from 'drizzle-orm'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Database } from '@/db'
 import { staffUsers } from '@/db/schema'
-import type { IStaffRepository } from '../../application/ports/staff.port'
+import type { IStaffRepository, StaffSeedUpdateDTO } from '../../application/ports/staff.port'
 import type { StaffResponseDTO } from '../../application/dtos/staff.dto'
 import { encryptFields, decryptFields, createCryptoConfig } from '@/shared/crypto/crypto-fields'
 import { getEncryption } from '@/shared/crypto/encryption.service'
@@ -110,11 +110,7 @@ export const createStaffRepository = (db: Database): IStaffRepository => {
     async update(id, data, tx) {
       return dbExec('update', 'StaffRepository', async () => {
         const conn = tx ?? db
-        const payload = data as Partial<UpdateStaffDTO> & {
-          email?: string
-          emailHash?: string
-          passwordHash?: string
-        }
+        const payload: StaffSeedUpdateDTO = data
         const updateData: Record<string, unknown> = { updatedAt: new Date() }
 
         if (payload.name) {

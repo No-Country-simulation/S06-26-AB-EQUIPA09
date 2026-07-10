@@ -1,15 +1,15 @@
-FROM oven/bun:1.1.38-alpine AS runner
-WORKDIR /app/packages/backend
+FROM oven/bun:1.3.14-alpine AS runner
+WORKDIR /app
 RUN addgroup --system --gid 1001 bunjs && \
     adduser  --system --uid 1001 bunjs
 
-COPY --chown=bunjs:bunjs packages/backend/package.json ./package.json
-RUN bun install --production
+COPY --chown=bunjs:bunjs package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
 
-COPY --chown=bunjs:bunjs packages/backend/ .
+COPY --chown=bunjs:bunjs . .
 
-RUN mkdir -p /app/packages/backend/uploads && \
-    chown -R bunjs:bunjs /app/packages/backend/uploads
+RUN mkdir -p /app/uploads && \
+    chown -R bunjs:bunjs /app/uploads
 
 USER bunjs
 EXPOSE 3001

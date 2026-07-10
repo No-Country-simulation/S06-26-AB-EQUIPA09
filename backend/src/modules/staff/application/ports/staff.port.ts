@@ -10,6 +10,12 @@ import type {
   ActivityLogResponseDTO,
 } from '../dtos/staff.dto'
 
+export type StaffSeedUpdateDTO = Partial<UpdateStaffDTO> & {
+  email?: string
+  emailHash?: string
+  passwordHash?: string
+}
+
 export interface ListResponse<T> {
   data: T
   pagination: {
@@ -34,7 +40,7 @@ export interface IStaffRepository {
     perPage: number,
     filters?: { isActive?: boolean }
   ): Promise<ListResponse<StaffResponseDTO[]>>
-  update(id: string, data: Partial<UpdateStaffDTO>, db?: DbOrTx): Promise<StaffResponseDTO>
+  update(id: string, data: StaffSeedUpdateDTO, db?: DbOrTx): Promise<StaffResponseDTO>
   updateLastLogin(id: string, db?: DbOrTx): Promise<void>
   count(): Promise<number>
 }
