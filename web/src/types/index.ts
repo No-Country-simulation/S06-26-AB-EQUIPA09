@@ -22,9 +22,14 @@ export interface Regiao {
   programas_count: number
 }
 
+export interface DadoLinha {
+  [coluna: string]: unknown
+}
+
 export interface DadosResponse {
   resposta_ia: string
-  dados: { regiao: string; valor: number; fonte: string }[]
+  colunas: string[]
+  dados: DadoLinha[]
   fontes: string[]
   sql_gerado?: string
 }

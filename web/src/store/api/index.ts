@@ -36,8 +36,3 @@ export {
   useListProgramsQuery,
   useGetProgramQuery,
 } from './programs.api'
-
-export {
-  useAgentQueryMutation,
-  useGetQueryLogsQuery,
-} from './agent.api'

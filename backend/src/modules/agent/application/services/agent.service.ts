@@ -12,6 +12,29 @@ const COMPONENT = 'AgentService'
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const DEFAULT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
 
+const TABLE_SOURCE_MAP: Record<string, string> = {
+  'cdrview_records': 'Vísent CDRView',
+  'base_stations': 'Vísent CDRView',
+  'region_coverage': 'Vísent CDRView',
+  'indicators': 'INE Angola',
+  'indicator_data': 'INE Angola',
+  'programs': 'Governo de Luanda',
+  'regions': 'INE Angola',
+  'data_sources': 'Vísent CDRView',
+}
+
+const inferSources = (sql: string | null): string[] => {
+  if (!sql) return ['Vísent CDRView']
+  const sources = new Set<string>()
+  const sqlUpper = sql.toUpperCase()
+  for (const [table, source] of Object.entries(TABLE_SOURCE_MAP)) {
+    if (sqlUpper.includes(table.toUpperCase())) {
+      sources.add(source)
+    }
+  }
+  return sources.size > 0 ? [...sources] : ['Vísent CDRView']
+}
+
 const buildPrompt = (query: string, filters?: { region?: string; indicator?: string; period?: string }): string => {
   let filterText = ''
   if (filters?.region || filters?.indicator || filters?.period) {
@@ -283,6 +306,7 @@ export const createAgentService = (
           sqlValid,
           result,
           aiResponse,
+          sources: inferSources(generatedSql),
           rowsReturned,
           latencyMs,
           groqModel,
@@ -300,6 +324,7 @@ export const createAgentService = (
           sqlValid,
           result,
           aiResponse,
+          sources: inferSources(generatedSql),
           rowsReturned,
           latencyMs,
           groqModel,

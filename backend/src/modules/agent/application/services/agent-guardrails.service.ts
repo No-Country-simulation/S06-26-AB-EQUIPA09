@@ -8,6 +8,8 @@ const COMPONENT = 'AgentGuardrails'
 
 const SQL_VALID_REGEX = /^\s*SELECT\b/i
 const SQL_DANGEROUS_REGEX = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE)\b/i
+const SQL_COMMENT_REGEX = /(--[^\n]*|\/\*[\s\S]*?\*\/)/gi
+const TABLE_REF_REGEX = /(?:FROM|JOIN)\s+(\w+)/gi
 
 export const llmResponseSchema = z.object({
   sql: z.string().min(1, 'SQL gerado vazio').optional(),
@@ -76,6 +78,7 @@ export const createAgentGuardrails = () => {
         'NOT_SELECT', COMPONENT,
       ))
     }
+
     if (SQL_DANGEROUS_REGEX.test(sql)) {
       return Err(ErrorFactory.business(
         'SQL contém operações não permitidas (INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/TRUNCATE)',
@@ -83,9 +86,23 @@ export const createAgentGuardrails = () => {
       ))
     }
 
-    const sqlUpper = sql.toUpperCase()
-    for (const table of ALLOWED_TABLES) {
-      if (sqlUpper.includes(table.toUpperCase())) continue
+    const sqlWithoutComments = sql.replace(SQL_COMMENT_REGEX, '')
+
+    const referencedTables = new Set<string>()
+    let match: RegExpExecArray | null
+    const tableRegex = new RegExp(TABLE_REF_REGEX.source, TABLE_REF_REGEX.flags)
+    while ((match = tableRegex.exec(sqlWithoutComments)) !== null) {
+      referencedTables.add(match[1].toLowerCase())
+    }
+
+    const allowedSet = new Set(ALLOWED_TABLES.map(t => t.toLowerCase()))
+    const disallowed = [...referencedTables].filter(t => !allowedSet.has(t))
+
+    if (disallowed.length > 0) {
+      return Err(ErrorFactory.business(
+        `SQL referencia tabelas não permitidas: ${disallowed.join(', ')}`,
+        'TABLE_NOT_ALLOWED', COMPONENT,
+      ))
     }
 
     return Ok({ passed: true, message: 'SQL válido e seguro', code: 'GATE3_PASS' })
@@ -104,6 +121,17 @@ export const createAgentGuardrails = () => {
         return Err(ErrorFactory.business(
           `O filtro de período "${context.period}" não foi aplicado correctamente na consulta`,
           'MISSING_PERIOD_FILTER', COMPONENT,
+        ))
+      }
+    }
+    if (context?.indicator) {
+      const indicatorInSql = sql.toUpperCase().includes(context.indicator.toUpperCase())
+      const slugPattern = sql.match(/slug\s*=\s*['"]([^'"]+)['"]/i)
+      const indicatorMatch = slugPattern && slugPattern[1].toLowerCase() === context.indicator.toLowerCase()
+      if (!indicatorInSql && !indicatorMatch) {
+        return Err(ErrorFactory.business(
+          `O filtro de indicador "${context.indicator}" não foi aplicado na consulta gerada`,
+          'MISSING_INDICATOR_FILTER', COMPONENT,
         ))
       }
     }

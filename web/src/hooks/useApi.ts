@@ -91,23 +91,13 @@ function mapBackendRegioes(regions: any[], coverages: any[], indicatorsData: any
 // Converte resposta do agente para o nosso DadosResponse
 function mapAgentResponse(data: any): DadosResponse {
   const rows: any[] = data.result ?? data.results ?? data.dados ?? []
+
+  const colunas = rows.length > 0 ? Object.keys(rows[0]) : []
+
   return {
     resposta_ia: data.aiResponse ?? data.answer ?? data.resposta_ia ?? data.response ?? '',
-    dados: rows.map((r: any) => ({
-      regiao: r.region ?? r.regiao ?? r.name ?? r.nome ?? r.municipality ?? r.zone_id ?? String(r.id ?? ''),
-      valor: Number(
-        r.value ??
-        r.valor ??
-        r.coverage ??
-        r.network_coverage_score ??
-        r.networkCoverageScore ??
-        r.people_count ??
-        r.peopleCount ??
-        r.max_concentration ??
-        0
-      ),
-      fonte: r.source ?? r.fonte ?? 'Vísent CDRView',
-    })),
+    colunas,
+    dados: rows,
     fontes: data.sources ?? data.fontes ?? ['Vísent CDRView'],
     sql_gerado: data.generatedSql ?? data.sql ?? undefined,
   }

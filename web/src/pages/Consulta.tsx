@@ -43,17 +43,19 @@ export default function Consulta() {
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-ink-border-soft">
-                  <th className="text-left py-2 text-mist-600 font-medium font-mono uppercase text-[10.5px] tracking-wider">Região</th>
-                  <th className="text-right py-2 text-mist-600 font-medium font-mono uppercase text-[10.5px] tracking-wider">Valor</th>
-                  <th className="text-right py-2 text-mist-600 font-medium font-mono uppercase text-[10.5px] tracking-wider">Fonte</th>
+                  {ultimaResposta.colunas.map(col => (
+                    <th key={col} className="text-left py-2 text-mist-600 font-medium font-mono uppercase text-[10.5px] tracking-wider px-2">{col}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-border-soft">
                 {ultimaResposta.dados.map((d, i) => (
                   <tr key={i}>
-                    <td className="py-2 text-mist-200">{d.regiao}</td>
-                    <td className="py-2 text-right font-medium text-mist-50 font-mono">{Math.round(d.valor)}%</td>
-                    <td className="py-2 text-right text-mist-600 font-mono">{d.fonte}</td>
+                    {ultimaResposta.colunas.map(col => (
+                      <td key={col} className="py-2 text-mist-200 font-mono px-2">
+                        {typeof d[col] === 'number' ? Math.round(d[col] as number) : String(d[col] ?? '')}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

@@ -16,6 +16,7 @@ export type AgentResponseDTO = {
   sqlValid:     boolean
   result:       Record<string, unknown>[] | null
   aiResponse:   string
+  sources:      string[]
   rowsReturned: number
   latencyMs:    number
   groqModel:    string

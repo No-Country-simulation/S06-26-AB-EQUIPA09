@@ -120,22 +120,26 @@ export const REGIOES_MOCK: Regiao[] = [
 export const RESPOSTAS_MOCK: Record<string, DadosResponse> = {
   default: {
     resposta_ia: 'Com base nos dados disponíveis, identifico padrões críticos de desigualdade digital em Luanda. Os municípios periféricos — Cacuaco, Cazenga e Viana — concentram mais de 3 milhões de habitantes mas registam cobertura de rede abaixo de 50%, criando uma barreira estrutural ao acesso a serviços digitais.',
-    dados: REGIOES_MOCK.map(r => ({ regiao: r.nome, valor: Math.round(r.cobertura_rede * 100), fonte: 'Vísent CDRView' })),
+    colunas: ['regiao', 'valor'],
+    dados: REGIOES_MOCK.map(r => ({ regiao: r.nome, valor: Math.round(r.cobertura_rede * 100) })),
     fontes: ['Vísent CDRView', 'INE Angola'],
   },
   formacao: {
     resposta_ia: 'Cacuaco (5%) e Cazenga (9%) têm cobertura de formação tech criticamente baixa. Juntos somam mais de 1,7 milhões de habitantes sem acesso a programas de qualificação digital. A ausência de conectividade agrava o problema: sem rede estável, formações online são inacessíveis e a população fica dependente de iniciativas presenciais ainda escassas.',
-    dados: REGIOES_MOCK.map(r => ({ regiao: r.nome, valor: r.indicadores.find(i => i.slug === 'cobertura-formacao-tech')?.valor ?? 0, fonte: 'INE Angola' })),
+    colunas: ['regiao', 'valor'],
+    dados: REGIOES_MOCK.map(r => ({ regiao: r.nome, valor: r.indicadores.find(i => i.slug === 'cobertura-formacao-tech')?.valor ?? 0 })),
     fontes: ['INE Angola', 'Vísent CDRView'],
   },
   emprego: {
     resposta_ia: 'Cacuaco (14%) e Cazenga (18%) têm as menores taxas de emprego formal de Luanda, apesar de serem os municípios mais populosos. A alta concentração populacional combinada com baixa conectividade impede o acesso a plataformas de emprego online e formação profissional remota — ciclo que perpetua a informalidade.',
-    dados: REGIOES_MOCK.map(r => ({ regiao: r.nome, valor: r.indicadores.find(i => i.slug === 'taxa-emprego-formal')?.valor ?? 0, fonte: 'INE Angola' })),
+    colunas: ['regiao', 'valor'],
+    dados: REGIOES_MOCK.map(r => ({ regiao: r.nome, valor: r.indicadores.find(i => i.slug === 'taxa-emprego-formal')?.valor ?? 0 })),
     fontes: ['INE Angola', 'Vísent CDRView'],
   },
   saude: {
     resposta_ia: 'Cacuaco regista o índice mais crítico de saúde mental (22 pts) e a menor cobertura de rede de Luanda (19%). Sem conectividade, serviços de apoio psicológico remoto, linhas de crise e plataformas de triagem simplesmente não chegam. Qualquer política de saúde mental neste município precisa de começar por infraestrutura — antenas antes de apps.',
-    dados: REGIOES_MOCK.map(r => ({ regiao: r.nome, valor: r.indicadores.find(i => i.slug === 'indice-saude-mental')?.valor ?? 0, fonte: 'OMS / INE Angola' })),
+    colunas: ['regiao', 'valor'],
+    dados: REGIOES_MOCK.map(r => ({ regiao: r.nome, valor: r.indicadores.find(i => i.slug === 'indice-saude-mental')?.valor ?? 0 })),
     fontes: ['OMS', 'INE Angola', 'Vísent CDRView'],
   },
 }
