@@ -4,6 +4,7 @@ import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Mapa from './pages/Mapa'
 import Consulta from './pages/Consulta'
+import UploadCsv from './pages/UploadCsv'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -12,6 +13,7 @@ import StaffProtectedRoute from './components/auth/StaffProtectedRoute'
 import StaffLogin from './pages/staff/StaffLogin'
 import StaffDashboard from './pages/staff/StaffDashboard'
 import StaffIngestion from './pages/staff/StaffIngestion'
+import StaffUploadCsv from './pages/staff/StaffUploadCsv'
 import StaffIndicadores from './pages/staff/StaffIndicadores'
 import StaffProgramas from './pages/staff/StaffProgramas'
 
@@ -37,6 +39,11 @@ export default function App() {
               <StaffIngestion />
             </StaffProtectedRoute>
           } />
+          <Route path="/staff/upload-csv" element={
+            <StaffProtectedRoute>
+              <StaffUploadCsv />
+            </StaffProtectedRoute>
+          } />
           <Route path="/staff/indicadores" element={
             <StaffProtectedRoute>
               <StaffIndicadores />
@@ -55,6 +62,7 @@ export default function App() {
             <Route path="/app" element={<Dashboard />} />
             <Route path="/app/mapa" element={<Mapa />} />
             <Route path="/app/consulta" element={<Consulta />} />
+            <Route path="/app/upload-csv" element={<UploadCsv />} />
             <Route path="/app/perfil" element={<Profile />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

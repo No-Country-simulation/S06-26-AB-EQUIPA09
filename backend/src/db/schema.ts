@@ -559,15 +559,34 @@ export const queryLogsRelations = relations(queryLogs, ({ one }) => ({
 // Kept in sync with the real schema — if a table changes, the context changes.
 // ═════════════════════════════════════════════
 export const SCHEMA_CONTEXT_FOR_AGENT = `
-Available tables for querying (READ-ONLY):
+Available tables for querying (READ-ONLY). The database contains public data about Angolan municipalities (Luanda province) — coverage, programs, indicators.
 
 regions(id, zone_id, name, municipality, state, country, lat, lng, estimated_population, area_km2)
+  - state: province name (e.g. 'Luanda')
+  - municipality: city/municipality name
+  - country: 'AO' for Angola
+
 base_stations(id, station_id, region_id, technology[2G|3G|4G|5G], carrier, lat, lng, power_dbm, is_active)
+
 cdrview_records(id, region_id, station_id, period, hour_of_day[0-23], day_of_week[0-6], people_count, network_technology, signal_strength[0.0-1.0])
+
 region_coverage(id, region_id, period, network_coverage_score[0.0-1.0], max_concentration, min_concentration, avg_daytime_concentration, avg_nighttime_concentration, dominant_technology, no_4g_or_5g_coverage[bool], total_records)
+  - network_coverage_score: 0.0 (no coverage) to 1.0 (excellent)
+  - Lower score = worse coverage. Sort ASC to find worst.
+
 indicators(id, slug, name, category[training|employability|structured_experiences|mentorships|mental_health], unit, direction[higher_is_better|lower_is_better])
+  - category 'training' = programas/formacao
+  - category 'employability' = emprego
+  - category 'mental_health' = saude mental
+
 indicator_data(id, region_id, indicator_id, source_id, period, value, normalized_value[0.0-1.0], quality[official|estimated|modelled])
+  - normalized_value < 0.3 = baixo/critico
+
 programs(id, region_id, name, category, organization, municipality, state, is_active, starts_at, ends_at)
+  - category 'training' = programas de formacao
+  - category 'employability' = programas de emprego
+  - To find regions MISSING programs: LEFT JOIN programs and filter WHERE programs.id IS NULL
+
 data_sources(id, slug, name, url, type, country)
 
 Common JOINs:
@@ -575,6 +594,11 @@ Common JOINs:
 - regions JOIN indicator_data ON indicator_data.region_id = regions.id
 - indicator_data JOIN indicators ON indicators.id = indicator_data.indicator_id
 - regions JOIN programs ON programs.region_id = regions.id
+
+Example queries for common questions:
+- "regioes com pior cobertura de rede" → SELECT r.name, rc.network_coverage_score FROM regions r JOIN region_coverage rc ON rc.region_id = r.id WHERE r.state = 'Luanda' ORDER BY rc.network_coverage_score ASC LIMIT 10
+- "regioes sem programas de formacao" → SELECT r.name FROM regions r LEFT JOIN programs p ON p.region_id = r.id AND p.category = 'training' WHERE p.id IS NULL
+- "regioes com baixa cobertura de formacao tech" → SELECT r.name, id.normalized_value FROM regions r JOIN indicator_data id ON id.region_id = r.id JOIN indicators i ON i.id = id.indicator_id WHERE i.category = 'training' ORDER BY id.normalized_value ASC
 
 Common filters:
 - period = '2024' (year) or '2024-Q1' (quarter)
