@@ -19,7 +19,7 @@ export type AgentResponseDTO = {
   sources:      string[]
   rowsReturned: number
   latencyMs:    number
-  groqModel:    string
+  llmModel:    string
   tokensUsed:   number | null
   error:        string | null
 }

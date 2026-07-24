@@ -7,6 +7,8 @@ import type { queryLogs } from '@/db/schema'
 
 export type QueryLog = InferSelectModel<typeof queryLogs>
 
+export type CreateQueryLogData = Omit<QueryLog, 'id' | 'createdAt' | 'groqModel'> & { llmModel: string }
+
 export interface ListResponse<T> {
   data: T
   pagination: {
@@ -19,7 +21,7 @@ export interface ListResponse<T> {
 
 export interface IQueryLogRepository {
   create(
-    data: Omit<QueryLog, 'id' | 'createdAt'>,
+    data: CreateQueryLogData,
     db?: DbOrTx
   ): Promise<QueryLog>
 

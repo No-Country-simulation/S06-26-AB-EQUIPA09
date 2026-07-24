@@ -9,8 +9,8 @@ import { createAgentCircuitBreaker } from './agent-circuit-breaker.service'
 import { createAgentTracer } from './agent-tracer.service'
 
 const COMPONENT = 'AgentService'
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const DEFAULT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+const COHERE_API_URL = 'https://api.cohere.com/v2/chat'
+const DEFAULT_MODEL = process.env.COHERE_MODEL || 'command-a-03-2025'
 const MAX_RETRIES = 2
 
 const TABLE_SOURCE_MAP: Record<string, string> = {
@@ -34,6 +34,60 @@ const inferSources = (sql: string | null): string[] => {
     }
   }
   return sources.size > 0 ? [...sources] : ['Vísent CDRView']
+}
+
+// --- Intent classification ---
+// Separates general conversation (greetings, thanks, capability questions)
+// from actual data queries that need SQL generation.
+type IntentType = 'data_query' | 'general_chat'
+
+const classifyIntent = async (query: string): Promise<{ intent: IntentType; response?: string }> => {
+  const res = await fetch(COHERE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.COHERE_API_KEY}`,
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      model: DEFAULT_MODEL,
+      messages: [{
+        role: 'user',
+        content: `Classify the user message into exactly one category. Respond with ONLY a JSON object, no extra text.
+
+Categories:
+- "data_query": The user is asking for specific data, numbers, statistics, lists, counts, comparisons, or any information that exists in a database. Examples: "quantas schools existem?", "qual a população de Luanda?", "liste as regiões", "mostre os dados de saúde"
+- "general_chat": The user is greeting, thanking, saying goodbye, asking what you can do, making small talk, or asking something that does NOT require querying a database. Examples: "Olá", "obrigado", "tudo bem?", "quem és tu?", "ajuda", "como funciona?"
+
+User message: "${query}"
+
+Respond with ONLY: {"intent": "data_query"} or {"intent": "general_chat", "response": "your friendly reply in the same language as the user"}`,
+      }],
+      temperature: 0,
+      response_format: { type: 'json_object' },
+    }),
+  })
+
+  if (!res.ok) {
+    // On classification failure, assume data_query to be safe
+    return { intent: 'data_query' }
+  }
+
+  const body = await res.json() as {
+    message?: { content?: Array<{ type: string; text?: string }> }
+  }
+  const text = body.message?.content?.[0]?.text
+  if (!text) return { intent: 'data_query' }
+
+  try {
+    const parsed = JSON.parse(text) as { intent?: string; response?: string }
+    return {
+      intent: parsed.intent === 'general_chat' ? 'general_chat' : 'data_query',
+      response: parsed.response,
+    }
+  } catch {
+    return { intent: 'data_query' }
+  }
 }
 
 const buildPrompt = (query: string, filters?: { region?: string; indicator?: string; period?: string }): string => {
@@ -106,27 +160,80 @@ export const createAgentService = (
       }
       tracer.endSpan(traceId, 'gate1-input-validation', { passed: true })
 
+      const startMs = Date.now()
+
+      // --- Intent classification: separate chat from data queries ---
+      tracer.startSpan(traceId, 'intent-classification', { query: data.query })
+
+      let classification: { intent: IntentType; response?: string }
+      try {
+        classification = await classifyIntent(data.query)
+      } catch {
+        classification = { intent: 'data_query' }
+      }
+
+      tracer.endSpan(traceId, 'intent-classification', { intent: classification.intent })
+
+      if (classification.intent === 'general_chat') {
+        const chatResponse = classification.response ?? 'Olá! Sou o assistente de dados do Bit-B2G. Posso ajudar-te a consultar informações sobre regiões, estações de base, cobertura de rede, indicadores sociais e programas. Como posso ajudar?'
+        const latencyMs = Date.now() - startMs
+
+        try {
+          await queryLogRepo.create({
+            userId:       userId ?? null,
+            query:        data.query,
+            filters:      (data.filters as QueryLog['filters']) ?? {},
+            generatedSql: null,
+            sqlValid:     false,
+            aiResponse:   chatResponse,
+            rowsReturned: 0,
+            latencyMs,
+            llmModel:     DEFAULT_MODEL,
+            tokensUsed:   null,
+            error:        null,
+            ipAddress:    ipAddress ?? null,
+          })
+        } catch {
+          logger.warn({ query: data.query }, 'Failed to persist general_chat log')
+        }
+
+        return Ok({
+          queryId:      'chat',
+          query:        data.query,
+          generatedSql: null,
+          sqlValid:     false,
+          result:       null,
+          aiResponse:   chatResponse,
+          sources:      [],
+          rowsReturned: 0,
+          latencyMs,
+          llmModel:     DEFAULT_MODEL,
+          tokensUsed:   null,
+          error:        null,
+        })
+      }
+
+      // --- Data query: proceed to SQL generation pipeline ---
       if (!circuitBreaker.isAvailable()) {
         const err = Err(ErrorFactory.externalService(
           'O assistente de IA está temporariamente indisponível devido a falhas consecutivas. Tenta novamente dentro de alguns instantes.',
-          'Groq', undefined, 'circuit_breaker', COMPONENT,
+          'Cohere', undefined, 'circuit_breaker', COMPONENT,
         ))
         tracer.endSpan(traceId, 'llm-call', undefined, 'circuit_breaker_open')
         tracer.flushTrace(traceId)
         return err
       }
 
-      if (!process.env.GROQ_API_KEY) {
-        tracer.endSpan(traceId, 'llm-call', undefined, 'missing_groq_api_key')
+      if (!process.env.COHERE_API_KEY) {
+        tracer.endSpan(traceId, 'llm-call', undefined, 'missing_cohere_api_key')
         tracer.flushTrace(traceId)
         return Err(ErrorFactory.externalService(
-          'GROQ_API_KEY não está configurada no backend',
-          'Groq', undefined, 'configuration', COMPONENT,
+          'COHERE_API_KEY não está configurada no backend',
+          'Cohere', undefined, 'configuration', COMPONENT,
         ))
       }
 
-      const startMs = Date.now()
-      let groqModel = DEFAULT_MODEL
+      let llmModel = DEFAULT_MODEL
       let tokensUsed: number | null = null
       let generatedSql: string | null = null
       let sqlValid = false
@@ -134,48 +241,54 @@ export const createAgentService = (
       let aiResponse = ''
       let error: string | null = null
       let rowsReturned = 0
+
+      // Cohere v2 API only supports "user" and "assistant" roles — no "system" role.
+      // Prepend system instructions to the first user message.
+      const SYSTEM_INSTRUCTIONS = 'You are a read-only SQL analyst. Respond in JSON format only.'
       const messages: Array<{ role: string; content: string }> = [
-        { role: 'system', content: 'You are a read-only SQL analyst. Respond in JSON format only.' },
-        { role: 'user', content: buildPrompt(data.query, data.filters) },
+        { role: 'user', content: `${SYSTEM_INSTRUCTIONS}\n\n${buildPrompt(data.query, data.filters)}` },
       ]
 
       try {
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
           tracer.startSpan(traceId, `llm-call-attempt-${attempt}`, { model: DEFAULT_MODEL })
 
-          const groqResponse = await fetch(GROQ_API_URL, {
+          const cohereResponse = await fetch(COHERE_API_URL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+              'Authorization': `Bearer ${process.env.COHERE_API_KEY}`,
+              'Accept': 'application/json',
             },
             body: JSON.stringify({
               model: DEFAULT_MODEL,
               messages,
-              temperature: 0.1,
               response_format: { type: 'json_object' },
             }),
           })
 
-          if (!groqResponse.ok) {
-            const errorBody = await groqResponse.text()
-            error = `Groq API error: ${groqResponse.status} — ${errorBody}`
+          if (!cohereResponse.ok) {
+            const errorBody = await cohereResponse.text()
+            error = `Cohere API error: ${cohereResponse.status} — ${errorBody}`
             aiResponse = error
             circuitBreaker.recordCall({ httpOk: false, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed: null })
             tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.externalService('Erro ao comunicar com o assistente de IA', 'Groq', errorBody, 'query', COMPONENT))
+            return Err(ErrorFactory.externalService('Erro ao comunicar com o assistente de IA', 'Cohere', errorBody, 'query', COMPONENT))
           }
 
-          const groqBody = await groqResponse.json() as {
+          const cohereBody = await cohereResponse.json() as {
+            id?: string
             model?: string
-            usage?: { total_tokens?: number }
-            choices?: Array<{ message?: { content?: string } }>
+            usage?: { input_tokens?: number; output_tokens?: number }
+            message?: { content?: Array<{ type: string; text?: string }> }
           }
 
-          groqModel = groqBody.model ?? DEFAULT_MODEL
-          tokensUsed = groqBody.usage?.total_tokens ?? null
-          const content = groqBody.choices?.[0]?.message?.content
+          llmModel = cohereBody.model ?? DEFAULT_MODEL
+          const inputTokens = cohereBody.usage?.input_tokens ?? 0
+          const outputTokens = cohereBody.usage?.output_tokens ?? 0
+          tokensUsed = (inputTokens + outputTokens) || null
+          const content = cohereBody.message?.content?.[0]?.text
 
           if (!content) {
             error = 'Resposta vazia da IA'
@@ -183,10 +296,10 @@ export const createAgentService = (
             circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
             tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.externalService('Resposta vazia do assistente', 'Groq', undefined, 'query', COMPONENT))
+            return Err(ErrorFactory.externalService('Resposta vazia do assistente', 'Cohere', undefined, 'query', COMPONENT))
           }
 
-          tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, { model: groqModel, tokensUsed, contentLength: content.length })
+          tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, { model: llmModel, tokensUsed, contentLength: content.length })
 
           tracer.startSpan(traceId, `gate2-schema-validation-${attempt}`, { rawContent: content.substring(0, 200) })
 
@@ -336,7 +449,7 @@ export const createAgentService = (
           aiResponse,
           rowsReturned,
           latencyMs,
-          groqModel,
+          llmModel,
           tokensUsed,
           error:        error ?? null,
           ipAddress:    ipAddress ?? null,
@@ -355,7 +468,7 @@ export const createAgentService = (
           sources: inferSources(generatedSql),
           rowsReturned,
           latencyMs,
-          groqModel,
+          llmModel,
           tokensUsed,
           error,
         })
@@ -373,7 +486,7 @@ export const createAgentService = (
           sources: inferSources(generatedSql),
           rowsReturned,
           latencyMs,
-          groqModel,
+          llmModel,
           tokensUsed,
           error,
         })

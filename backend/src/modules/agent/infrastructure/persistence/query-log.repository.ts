@@ -33,7 +33,7 @@ export const createQueryLogRepository = (db: Database): IQueryLogRepository => {
             aiResponse:   data.aiResponse,
             rowsReturned: data.rowsReturned,
             latencyMs:    data.latencyMs,
-            groqModel:    data.groqModel,
+            groqModel:    data.llmModel,
             tokensUsed:   data.tokensUsed,
             error:        data.error,
             ipAddress:    data.ipAddress,
