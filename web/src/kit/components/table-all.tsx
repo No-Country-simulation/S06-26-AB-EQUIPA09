@@ -10,6 +10,9 @@ import {
   type SortingState,
   type RowSelectionState,
   type VisibilityState,
+  type Row,
+  type Header,
+  type HeaderGroup,
 } from "@tanstack/react-table";
 import {
   DndContext,
@@ -173,7 +176,7 @@ const Pagination = ({
 // --- Column visibility dropdown ---
 const ColumnVisibilityMenu = <T,>({ table }: { table: ReturnType<typeof useReactTable<T>> }) => {
   const [open, setOpen] = useState(false);
-  const toggleable = table.getAllLeafColumns().filter(c => !["__select", "__drag", "__actions"].includes(c.id) && c.getCanHide());
+  const toggleable = table.getAllLeafColumns().filter((c: any) => !["__select", "__drag", "__actions"].includes(c.id) && c.getCanHide());
 
   return (
     <div className="relative">
@@ -188,7 +191,7 @@ const ColumnVisibilityMenu = <T,>({ table }: { table: ReturnType<typeof useReact
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 z-20 mt-1 w-52 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1.5">
-            {toggleable.map(col => {
+            {toggleable.map((col: any) => {
               // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
               const meta = col.columnDef.meta as ColumnMeta | undefined;
               const label = meta?.label ?? (typeof col.columnDef.header === "string" ? col.columnDef.header : col.id);
@@ -300,7 +303,7 @@ export const TableAll = <T extends object>({
     if (enableRowSelection) {
       cols.push({
         id: "__select",
-        header: ({ table }) => (
+        header: ({ table }: { table: any }) => (
           <input
             type="checkbox"
             checked={table.getIsAllPageRowsSelected()}
@@ -311,7 +314,7 @@ export const TableAll = <T extends object>({
             className="rounded border-gray-300 dark:border-gray-700 text-teal-600 focus:ring-teal-500"
           />
         ),
-        cell: ({ row }) => (
+        cell: ({ row }: { row: Row<T> }) => (
           <input
             type="checkbox"
             checked={row.getIsSelected()}
@@ -333,7 +336,7 @@ export const TableAll = <T extends object>({
       cols.push({
         id: "__actions",
         header: () => null,
-        cell: ({ row }) => <div className="flex items-center justify-end gap-1">{rowActions(row.original)}</div>,
+        cell: ({ row }: { row: Row<T> }) => <div className="flex items-center justify-end gap-1">{rowActions(row.original)}</div>,
         enableSorting: false,
         enableHiding: false,
         meta: { align: "right" },
@@ -346,7 +349,7 @@ export const TableAll = <T extends object>({
   const table = useReactTable({
     data,
     columns: tableColumns,
-    getRowId: getRowId ? (row => getRowId(row)) : undefined,
+    getRowId: getRowId ? ((row: T) => getRowId(row)) : undefined,
     state: {
       sorting,
       rowSelection,
@@ -354,7 +357,7 @@ export const TableAll = <T extends object>({
       pagination: { pageIndex: safePageIndex, pageSize: safePageSize },
     },
     onSortingChange: setSorting,
-    onRowSelectionChange: (updater) => {
+    onRowSelectionChange: (updater: any) => {
       setRowSelection(updater);
       const next = typeof updater === "function" ? updater(rowSelection) : updater;
       onSelectionChange?.(Object.keys(next));
@@ -400,11 +403,11 @@ export const TableAll = <T extends object>({
   const startEntry = safeTotalRows === 0 ? 0 : safePageIndex * safePageSize + 1;
   const endEntry = Math.min((safePageIndex + 1) * safePageSize, safeTotalRows);
 
-  const rowIdsForDrag = enableRowDragReorder && getRowId ? table.getRowModel().rows.map(r => r.id) : [];
+  const rowIdsForDrag = enableRowDragReorder && getRowId ? table.getRowModel().rows.map((r: Row<T>) => r.id) : [];
 
   const renderRows = () =>
-    table.getRowModel().rows.map(row => {
-      const cells = row.getVisibleCells().map(cell => {
+    table.getRowModel().rows.map((row: Row<T>) => {
+      const cells = row.getVisibleCells().map((cell: any) => {
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
               const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
         return (
@@ -490,9 +493,9 @@ export const TableAll = <T extends object>({
         <div className="overflow-x-auto" style={maxBodyHeight ? { maxHeight: maxBodyHeight, overflowY: "auto" } : undefined}>
           <table className="w-full">
             <thead className={clsx("bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800", stickyHeader && "sticky top-0 z-10")}>
-              {table.getHeaderGroups().map(headerGroup => (
+              {table.getHeaderGroups().map((headerGroup: HeaderGroup<T>) => (
                 <tr key={headerGroup.id}>
-                  {headerGroup.headers.map(header => {
+                  {headerGroup.headers.map((header: Header<T, unknown>) => {
                     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                     const meta = header.column.columnDef.meta as ColumnMeta | undefined;
                     const canSort = header.column.getCanSort();

@@ -111,7 +111,7 @@ export const createAgentService = (
       let aiResponse = ''
       let error: string | null = null
       let rowsReturned = 0
-      let messages: Array<{ role: string; content: string }> = [
+      const messages: Array<{ role: string; content: string }> = [
         { role: 'system', content: 'You are a read-only SQL analyst. Respond in JSON format only.' },
         { role: 'user', content: buildPrompt(data.query, data.filters) },
       ]
