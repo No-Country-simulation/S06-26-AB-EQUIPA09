@@ -118,7 +118,7 @@ export const createAgentService = (
       let aiResponse = ''
       let error: string | null = null
       let rowsReturned = 0
-      let messages: Array<{ role: string; content: string }> = [
+      const messages: Array<{ role: string; content: string }> = [
         { role: 'system', content: 'You are a specialist in the Visent CDRView telecom database. Answer in Portuguese. Respond in JSON format only.' },
         { role: 'user', content: buildPrompt(data.query, data.filters) },
       ]
