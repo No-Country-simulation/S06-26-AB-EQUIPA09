@@ -4,6 +4,19 @@ import { api } from '../hooks/useAuth'
 
 type UploadMode = 'csv' | 'xlsx'
 
+const REQUIRED_FILES = [
+  { name: 'antenas_flp.csv', label: 'Antenas / Estações Base', required: true },
+  { name: 'tensor_concentracao.csv', label: 'Concentração de Dados', required: true },
+]
+
+const OPTIONAL_FILES = [
+  { name: 'tensor_fluxo_vias.csv', label: 'Fluxo de Vias' },
+  { name: 'tensor_od.csv', label: 'Matriz Origem-Destino' },
+  { name: 'tensor_tempo_deslocamento.csv', label: 'Tempo de Deslocamento' },
+  { name: 'trajetos_comuns.csv', label: 'Trajetos Comuns' },
+  { name: 'sumario_kanon.csv', label: 'Sumário K-Anonimato' },
+]
+
 export default function UploadCsv() {
   const [mode, setMode] = useState<UploadMode>('csv')
   const [files, setFiles] = useState<File[]>([])
@@ -74,6 +87,57 @@ export default function UploadCsv() {
             </button>
           ))}
         </div>
+
+        {mode === 'csv' && (
+          <div className="mb-6 space-y-4">
+            <div className="rounded-xl border border-ink-border bg-ink-850 p-4">
+              <h2 className="text-[14px] font-semibold text-mist-50 mb-2">
+                Ingestão CVSS — Dados de Telecomunicações
+              </h2>
+              <p className="text-[12px] text-mist-400 leading-relaxed mb-3">
+                Esta funcionalidade importa dados de operadoras de telecomunicações para análise
+                de cobertura, qualidade e indicadores de rede. O sistema identifica cada ficheiro
+                pelo nome para processar as colunas corretamente.
+              </p>
+
+              <h3 className="text-[12px] font-semibold text-mist-300 mb-2">
+                Ficheiros obrigatórios
+              </h3>
+              <ul className="space-y-1.5 mb-3">
+                {REQUIRED_FILES.map(f => (
+                  <li key={f.name} className="flex items-center gap-2 text-[12px]">
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-status-bad" />
+                    <code className="text-signal-400 font-mono">{f.name}</code>
+                    <span className="text-mist-500">— {f.label}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <h3 className="text-[12px] font-semibold text-mist-300 mb-2">
+                Ficheiros opcionais
+              </h3>
+              <ul className="space-y-1.5">
+                {OPTIONAL_FILES.map(f => (
+                  <li key={f.name} className="flex items-center gap-2 text-[12px]">
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-mist-700" />
+                    <code className="text-mist-400 font-mono">{f.name}</code>
+                    <span className="text-mist-500">— {f.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-ink-border bg-ink-850 p-4">
+              <h3 className="text-[12px] font-semibold text-mist-300 mb-2">Como fazer</h3>
+              <ol className="space-y-1.5 text-[12px] text-mist-400 list-decimal list-inside">
+                <li>Os ficheiros devem ter os <strong className="text-mist-300">nomes exatos</strong> listados acima</li>
+                <li>Selecione os ficheiros da pasta <code className="text-signal-400 font-mono">cvss/</code> do projeto</li>
+                <li>Envie pelo menos os dois obrigatórios em simultâneo</li>
+                <li>O sistema processa e armazena os dados automaticamente</li>
+              </ol>
+            </div>
+          </div>
+        )}
 
         <label className="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-signal-500 hover:bg-signal-400 text-ink-950 text-[13px] font-medium px-4 py-2 mb-4">
           {upload.isPending ? 'A enviar…' : 'Selecionar ficheiros'}

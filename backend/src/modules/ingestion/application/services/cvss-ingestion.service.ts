@@ -434,8 +434,13 @@ export const createCvssIngestionService = (
     return registered
   }
 
+  const normalizeName = (name: string) => name.trim().toLowerCase()
+
+  const normalizeKey = (name: string) =>
+    name.trim().toLowerCase().replace(/\s*\(.*?\)\s*/g, '').replace('.csv', '').replace(/[^a-z0-9_\u00e0-\u00fc]/g, '')
+
   const pickUploaded = (uploaded: CvssUploadedFile[], names: readonly string[]) =>
-    uploaded.find(file => names.includes(file.name))
+    uploaded.find(file => names.some(name => normalizeKey(file.name) === normalizeKey(name)))
 
   const pickPath = (directory: string, names: readonly string[]) =>
     names.map(name => path.join(directory, name)).find(filePath => existsSync(filePath))
@@ -452,7 +457,7 @@ export const createCvssIngestionService = (
       const antennaResult = await ingestAntennas(readCsvContent(antennas.content), 'upload://cvss')
       const concentrationResult = await ingestConcentration(readCsvContent(concentration.content), 'upload://cvss')
       const registeredSources = await registerUnmappedSources(
-        names => uploaded.some(file => names.includes(file.name)),
+        names => uploaded.some(file => names.some(name => normalizeKey(file.name) === normalizeKey(name))),
         'upload://cvss',
       )
 

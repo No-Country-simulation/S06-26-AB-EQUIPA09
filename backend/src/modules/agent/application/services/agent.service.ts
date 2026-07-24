@@ -23,17 +23,19 @@ const buildPrompt = (query: string, filters?: { region?: string; indicator?: str
     filterText = `\nUser filters: ${parts.join(', ')}`
   }
 
-  return `You are a read-only SQL analyst. Use only the tables defined in SCHEMA_CONTEXT.
+  return `You are a specialist in the Visent CDRView telecom database.
+Your only job is to answer questions by querying the tables defined in SCHEMA_CONTEXT.
 Generate a single SELECT query. Never generate INSERT, UPDATE, DELETE, or DDL.
 Respond in JSON: { sql: string, explanation: string }
 
+CRITICAL: The "explanation" must answer the user's question with the ACTUAL DATA your SQL will return.
+List the real values (region names, scores, numbers) from the database.
+Do NOT explain what the SQL does, what tables it uses, or what columns mean.
+Just state the facts found in the data. Be concise.
+If no data is found, say "Não foram encontrados dados."
+
 SCHEMA_CONTEXT:
 ${SCHEMA_CONTEXT_FOR_AGENT}${filterText}
-
-Examples of valid queries:
-- SELECT r.name, rc.network_coverage_score FROM regions r JOIN region_coverage rc ON r.id = rc.region_id
-- SELECT i.name, id.value, id.period FROM indicators i JOIN indicator_data id ON i.id = id.indicator_id WHERE id.region_id = 'some-uuid'
-- SELECT * FROM programs WHERE region_id = 'some-uuid' AND is_active = true
 
 User query: ${query}`
 }
@@ -43,8 +45,13 @@ const buildReflectionPrompt = (
   previousSql: string,
   errorMessage: string,
 ): string => {
-  return `You are a read-only SQL analyst. Your previous query was rejected.
-Fix it based on the error below. Respond in JSON: { sql: string, explanation: string }
+  return `You are a specialist in the Visent CDRView telecom database.
+Your previous query was rejected. Fix it based on the error below.
+Respond in JSON: { sql: string, explanation: string }
+
+CRITICAL: The "explanation" must answer the user's question directly in Portuguese.
+Do NOT describe the SQL, the query, the tables, or the joins.
+Just state the data facts.
 
 Previous query:
 ${previousSql}
@@ -111,8 +118,8 @@ export const createAgentService = (
       let aiResponse = ''
       let error: string | null = null
       let rowsReturned = 0
-      const messages: Array<{ role: string; content: string }> = [
-        { role: 'system', content: 'You are a read-only SQL analyst. Respond in JSON format only.' },
+      let messages: Array<{ role: string; content: string }> = [
+        { role: 'system', content: 'You are a specialist in the Visent CDRView telecom database. Answer in Portuguese. Respond in JSON format only.' },
         { role: 'user', content: buildPrompt(data.query, data.filters) },
       ]
 
@@ -289,6 +296,17 @@ export const createAgentService = (
         if (rowsReturned === 0 && generatedSql) {
           aiResponse = 'Não foram encontrados dados correspondentes à sua pergunta na base de dados atual. Tente reformular a pergunta ou verifique se os dados foram carregados.'
           result = null
+        } else if (result && result.length > 0) {
+          const cols = Object.keys(result[0])
+          const labelCol = cols.find(c => /name|regiao|região|region|municipality|cluster/.test(c)) ?? cols[0]
+          const valCol = cols.find(c => /score|valor|value|count|total|pct|concentration|people/.test(c)) ?? cols[1]
+          const lines = result.slice(0, 10).map(r => {
+            const label = String(r[labelCol] ?? '')
+            const val = r[valCol] ?? ''
+            const formatted = typeof val === 'number' ? (Number.isInteger(val) ? val : val.toFixed(2)) : val
+            return `${label}: ${formatted}`
+          })
+          aiResponse = lines.join(' | ')
         }
       } catch (err) {
         error = err instanceof Error ? err.message : String(err)

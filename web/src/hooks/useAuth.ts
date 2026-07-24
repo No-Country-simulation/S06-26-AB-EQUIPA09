@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAuthStore } from '../store'
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3080'
 
 // ─── AXIOS INSTANCE ──────────────────────────────────────────────────────────
 export const api = axios.create({ baseURL: API })

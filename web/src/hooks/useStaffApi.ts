@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3080'
 
 export const staffApi = axios.create({
   baseURL: API,

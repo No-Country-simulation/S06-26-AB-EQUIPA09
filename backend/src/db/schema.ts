@@ -559,51 +559,44 @@ export const queryLogsRelations = relations(queryLogs, ({ one }) => ({
 // Kept in sync with the real schema — if a table changes, the context changes.
 // ═════════════════════════════════════════════
 export const SCHEMA_CONTEXT_FOR_AGENT = `
-Available tables for querying (READ-ONLY). The database contains public data about Angolan municipalities (Luanda province) — coverage, programs, indicators.
+Available tables for querying (READ-ONLY). The database contains telecom coverage and usage data from Florianopolis region (Santa Catarina, Brazil) — base stations, coverage, CDR records, and concentration metrics. This is the Visent CDRView telecom data.
 
 regions(id, zone_id, name, municipality, state, country, lat, lng, estimated_population, area_km2)
-  - state: province name (e.g. 'Luanda')
-  - municipality: city/municipality name
-  - country: 'AO' for Angola
+  - state: 'SC' for Santa Catarina
+  - municipality: city name (e.g. 'Florianopolis', 'Palhoca', 'Biguacu')
+  - country: 'BR' for Brazil
+  - Contains 26 regions from the CVSS telecom dataset.
 
 base_stations(id, station_id, region_id, technology[2G|3G|4G|5G], carrier, lat, lng, power_dbm, is_active)
+  - Telecom antennas/ERBs. Each station belongs to a region (cluster).
+  - lat/lng: geographic coordinates of each antenna.
 
 cdrview_records(id, region_id, station_id, period, hour_of_day[0-23], day_of_week[0-6], people_count, network_technology, signal_strength[0.0-1.0])
+  - Call Detail Records: how many people connected per hour per station.
+  - ~13k records of telecom usage data.
 
 region_coverage(id, region_id, period, network_coverage_score[0.0-1.0], max_concentration, min_concentration, avg_daytime_concentration, avg_nighttime_concentration, dominant_technology, no_4g_or_5g_coverage[bool], total_records)
-  - network_coverage_score: 0.0 (no coverage) to 1.0 (excellent)
-  - Lower score = worse coverage. Sort ASC to find worst.
-
-indicators(id, slug, name, category[training|employability|structured_experiences|mentorships|mental_health], unit, direction[higher_is_better|lower_is_better])
-  - category 'training' = programas/formacao
-  - category 'employability' = emprego
-  - category 'mental_health' = saude mental
-
-indicator_data(id, region_id, indicator_id, source_id, period, value, normalized_value[0.0-1.0], quality[official|estimated|modelled])
-  - normalized_value < 0.3 = baixo/critico
-
-programs(id, region_id, name, category, organization, municipality, state, is_active, starts_at, ends_at)
-  - category 'training' = programas de formacao
-  - category 'employability' = programas de emprego
-  - To find regions MISSING programs: LEFT JOIN programs and filter WHERE programs.id IS NULL
+  - Coverage quality per region per period.
+  - network_coverage_score: 0.0 (no coverage) to 1.0 (excellent).
+  - avg_daytime_concentration / avg_nighttime_concentration: average users during day/night.
+  - max_concentration: peak users.
+  - 23 coverage records from the ingested CVSS data.
 
 data_sources(id, slug, name, url, type, country)
-
-Common JOINs:
-- regions JOIN region_coverage ON region_coverage.region_id = regions.id
-- regions JOIN indicator_data ON indicator_data.region_id = regions.id
-- indicator_data JOIN indicators ON indicators.id = indicator_data.indicator_id
-- regions JOIN programs ON programs.region_id = regions.id
+  - Registered data ingestion sources.
 
 Example queries for common questions:
-- "regioes com pior cobertura de rede" → SELECT r.name, rc.network_coverage_score FROM regions r JOIN region_coverage rc ON rc.region_id = r.id WHERE r.state = 'Luanda' ORDER BY rc.network_coverage_score ASC LIMIT 10
-- "regioes sem programas de formacao" → SELECT r.name FROM regions r LEFT JOIN programs p ON p.region_id = r.id AND p.category = 'training' WHERE p.id IS NULL
-- "regioes com baixa cobertura de formacao tech" → SELECT r.name, id.normalized_value FROM regions r JOIN indicator_data id ON id.region_id = r.id JOIN indicators i ON i.id = id.indicator_id WHERE i.category = 'training' ORDER BY id.normalized_value ASC
+- "regioes com pior cobertura de rede" → SELECT r.name, rc.network_coverage_score FROM regions r JOIN region_coverage rc ON rc.region_id = r.id ORDER BY rc.network_coverage_score ASC LIMIT 10
+- "quantas antenas por regiao" → SELECT r.name, COUNT(bs.id) FROM regions r LEFT JOIN base_stations bs ON bs.region_id = r.id GROUP BY r.name ORDER BY COUNT(bs.id) DESC
+- "concentracao de usuarios por periodo" → SELECT r.name, rc.avg_daytime_concentration, rc.avg_nighttime_concentration FROM regions r JOIN region_coverage rc ON rc.region_id = r.id
+- "total de registros CDR por regiao" → SELECT r.name, COUNT(*) as total FROM regions r JOIN cdrview_records c ON c.region_id = r.id GROUP BY r.name ORDER BY total DESC
+- "horarios de pico por regiao" → SELECT r.name, c.hour_of_day, SUM(c.people_count) as total FROM regions r JOIN cdrview_records c ON c.region_id = r.id GROUP BY r.name, c.hour_of_day ORDER BY total DESC LIMIT 20
+- "media de pessoas por hora do dia" → SELECT hour_of_day, AVG(people_count) FROM cdrview_records GROUP BY hour_of_day ORDER BY hour_of_day
+- "estacoes com pior sinal" → SELECT r.name, bs.station_id, bs.lat, bs.lng FROM base_stations bs JOIN regions r ON r.id = bs.region_id WHERE bs.power_dbm < 30 LIMIT 10
+- "regioes sem cobertura 4g/5g" → SELECT r.name, rc.network_coverage_score FROM regions r JOIN region_coverage rc ON rc.region_id = r.id WHERE rc.no_4g_or_5g_coverage = true
+- "comparar dia vs noite por regiao" → SELECT r.name, rc.avg_daytime_concentration, rc.avg_nighttime_concentration, (rc.avg_daytime_concentration - rc.avg_nighttime_concentration) as diferenca FROM regions r JOIN region_coverage rc ON rc.region_id = r.id ORDER BY diferenca DESC
 
 Common filters:
-- period = '2024' (year) or '2024-Q1' (quarter)
-- no_4g_or_5g_coverage = true (critical zones)
-- normalized_value < 0.3 (low/critical indicator)
 - hour_of_day BETWEEN 8 AND 18 (daytime hours)
 ` as const
 
