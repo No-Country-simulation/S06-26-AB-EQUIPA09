@@ -4,7 +4,8 @@ import { useStaffLogout, useStaffMe } from '../../hooks/useStaffApi'
 
 const NAV = [
   { to: '/staff/dashboard', label: 'Dashboard Staff', icon: '▦' },
-  { to: '/staff/ingestao', label: 'Ingestão de Dados', icon: '↑' },
+  { to: '/staff/upload-csv', label: 'Upload CSV', icon: '↑' },
+  { to: '/staff/ingestao', label: 'Ingestão de Dados', icon: '⚙' },
   { to: '/staff/indicadores', label: 'Indicadores', icon: '◉' },
   { to: '/staff/programas', label: 'Programas', icon: '☰' },
   { to: '/staff/dashboard', label: 'Membros', icon: '👤' },

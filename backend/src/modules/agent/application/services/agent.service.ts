@@ -11,6 +11,7 @@ import { createAgentTracer } from './agent-tracer.service'
 const COMPONENT = 'AgentService'
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const DEFAULT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+const MAX_RETRIES = 2
 
 const TABLE_SOURCE_MAP: Record<string, string> = {
   'cdrview_records': 'Vísent CDRView',
@@ -51,6 +52,31 @@ Respond in JSON: { sql: string, explanation: string }
 
 SCHEMA_CONTEXT:
 ${SCHEMA_CONTEXT_FOR_AGENT}${filterText}
+
+Examples of valid queries:
+- SELECT r.name, rc.network_coverage_score FROM regions r JOIN region_coverage rc ON r.id = rc.region_id
+- SELECT i.name, id.value, id.period FROM indicators i JOIN indicator_data id ON i.id = id.indicator_id WHERE id.region_id = 'some-uuid'
+- SELECT * FROM programs WHERE region_id = 'some-uuid' AND is_active = true
+
+User query: ${query}`
+}
+
+const buildReflectionPrompt = (
+  query: string,
+  previousSql: string,
+  errorMessage: string,
+): string => {
+  return `You are a read-only SQL analyst. Your previous query was rejected.
+Fix it based on the error below. Respond in JSON: { sql: string, explanation: string }
+
+Previous query:
+${previousSql}
+
+Error:
+${errorMessage}
+
+SCHEMA_CONTEXT:
+${SCHEMA_CONTEXT_FOR_AGENT}
 
 User query: ${query}`
 }
@@ -108,134 +134,148 @@ export const createAgentService = (
       let aiResponse = ''
       let error: string | null = null
       let rowsReturned = 0
+      const messages: Array<{ role: string; content: string }> = [
+        { role: 'system', content: 'You are a read-only SQL analyst. Respond in JSON format only.' },
+        { role: 'user', content: buildPrompt(data.query, data.filters) },
+      ]
 
       try {
-        tracer.startSpan(traceId, 'llm-call', { model: DEFAULT_MODEL })
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          tracer.startSpan(traceId, `llm-call-attempt-${attempt}`, { model: DEFAULT_MODEL })
 
-        const groqResponse = await fetch(GROQ_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: DEFAULT_MODEL,
-            messages: [
-              { role: 'system', content: 'You are a read-only SQL analyst. Respond in JSON format only.' },
-              { role: 'user', content: buildPrompt(data.query, data.filters) },
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' },
-          }),
-        })
-
-        if (!groqResponse.ok) {
-          const errorBody = await groqResponse.text()
-          error = `Groq API error: ${groqResponse.status} — ${errorBody}`
-          aiResponse = error
-
-          circuitBreaker.recordCall({
-            httpOk: false,
-            schemaValid: false,
-            latencyMs: Date.now() - startMs,
-            tokensUsed: null,
+          const groqResponse = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            },
+            body: JSON.stringify({
+              model: DEFAULT_MODEL,
+              messages,
+              temperature: 0.1,
+              response_format: { type: 'json_object' },
+            }),
           })
 
-          tracer.endSpan(traceId, 'llm-call', undefined, error)
-          tracer.flushTrace(traceId)
-          return Err(ErrorFactory.externalService(
-            'Erro ao comunicar com o assistente de IA',
-            'Groq', errorBody, 'query', COMPONENT,
-          ))
-        }
-
-        const groqBody = await groqResponse.json() as {
-          model?: string
-          usage?: { total_tokens?: number }
-          choices?: Array<{ message?: { content?: string } }>
-        }
-
-        groqModel = groqBody.model ?? DEFAULT_MODEL
-        tokensUsed = groqBody.usage?.total_tokens ?? null
-
-        const content = groqBody.choices?.[0]?.message?.content
-        if (!content) {
-          error = 'Resposta vazia da IA'
-          aiResponse = error
-          circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
-          tracer.endSpan(traceId, 'llm-call', undefined, error)
-          tracer.flushTrace(traceId)
-          return Err(ErrorFactory.externalService('Resposta vazia do assistente', 'Groq', undefined, 'query', COMPONENT))
-        }
-
-        tracer.endSpan(traceId, 'llm-call', { model: groqModel, tokensUsed, contentLength: content.length })
-
-        tracer.startSpan(traceId, 'gate2-schema-validation', { rawContent: content.substring(0, 200) })
-
-        let parsed: { sql?: string; explanation?: string }
-        try {
-          const raw = JSON.parse(content)
-            const gate2 = guardrails.validateGate2(raw)
-          if (!gate2.success) {
-            error = 'Resposta da IA não segue o formato JSON esperado'
-            aiResponse = content
-            generatedSql = null
-
-            circuitBreaker.recordCall({
-              httpOk: true,
-              schemaValid: false,
-              latencyMs: Date.now() - startMs,
-              tokensUsed,
-            })
-
-            tracer.endSpan(traceId, 'gate2-schema-validation', undefined, error)
+          if (!groqResponse.ok) {
+            const errorBody = await groqResponse.text()
+            error = `Groq API error: ${groqResponse.status} — ${errorBody}`
+            aiResponse = error
+            circuitBreaker.recordCall({ httpOk: false, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed: null })
+            tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.validation(
-              'O assistente devolveu uma resposta em formato inesperado',
-              [], COMPONENT,
-            ))
+            return Err(ErrorFactory.externalService('Erro ao comunicar com o assistente de IA', 'Groq', errorBody, 'query', COMPONENT))
           }
-          parsed = raw as { sql?: string; explanation?: string }
-        } catch {
-          error = 'Não foi possível interpretar a resposta da IA como JSON'
-          aiResponse = content
-          generatedSql = null
-          circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
-          tracer.endSpan(traceId, 'gate2-schema-validation', undefined, error)
-          tracer.flushTrace(traceId)
-          return Err(ErrorFactory.business('Resposta inválida do assistente', 'PARSE_ERROR', COMPONENT))
-        }
 
-        generatedSql = parsed.sql?.trim() ?? null
-        aiResponse = parsed.explanation ?? content
-        tracer.endSpan(traceId, 'gate2-schema-validation', { hasSql: !!generatedSql, explanation: aiResponse.substring(0, 100) })
+          const groqBody = await groqResponse.json() as {
+            model?: string
+            usage?: { total_tokens?: number }
+            choices?: Array<{ message?: { content?: string } }>
+          }
 
-        tracer.startSpan(traceId, 'gate3-sql-validation', { sql: generatedSql?.substring(0, 200) })
+          groqModel = groqBody.model ?? DEFAULT_MODEL
+          tokensUsed = groqBody.usage?.total_tokens ?? null
+          const content = groqBody.choices?.[0]?.message?.content
 
-        if (generatedSql) {
+          if (!content) {
+            error = 'Resposta vazia da IA'
+            aiResponse = error
+            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, undefined, error)
+            tracer.flushTrace(traceId)
+            return Err(ErrorFactory.externalService('Resposta vazia do assistente', 'Groq', undefined, 'query', COMPONENT))
+          }
+
+          tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, { model: groqModel, tokensUsed, contentLength: content.length })
+
+          tracer.startSpan(traceId, `gate2-schema-validation-${attempt}`, { rawContent: content.substring(0, 200) })
+
+          let parsed: { sql?: string; explanation?: string }
+          try {
+            const raw = JSON.parse(content)
+            const gate2 = guardrails.validateGate2(raw)
+            if (!gate2.success) {
+              error = 'Resposta da IA não segue o formato JSON esperado'
+              if (attempt < MAX_RETRIES) {
+                messages.push({ role: 'assistant', content })
+                messages.push({ role: 'user', content: `A resposta não está no formato JSON esperado. Responde apenas com JSON no formato { sql: string, explanation: string }.` })
+                tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, undefined, error)
+                continue
+              }
+              circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+              tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, undefined, error)
+              tracer.flushTrace(traceId)
+              return Err(ErrorFactory.validation('O assistente devolveu uma resposta em formato inesperado', [], COMPONENT))
+            }
+            parsed = raw as { sql?: string; explanation?: string }
+          } catch {
+            error = 'Não foi possível interpretar a resposta da IA como JSON'
+            if (attempt < MAX_RETRIES) {
+              messages.push({ role: 'assistant', content })
+              messages.push({ role: 'user', content: `A resposta não é um JSON válido. Responde apenas com JSON no formato { sql: string, explanation: string }.` })
+              tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, undefined, error)
+              continue
+            }
+            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, undefined, error)
+            tracer.flushTrace(traceId)
+            return Err(ErrorFactory.business('Resposta inválida do assistente', 'PARSE_ERROR', COMPONENT))
+          }
+
+          generatedSql = parsed.sql?.trim() ?? null
+          aiResponse = parsed.explanation ?? content
+          tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, { hasSql: !!generatedSql, explanation: aiResponse.substring(0, 100) })
+
+          tracer.startSpan(traceId, `gate3-sql-validation-${attempt}`, { sql: generatedSql?.substring(0, 200) })
+
+          if (!generatedSql) {
+            error = 'Não foi possível gerar SQL a partir da pergunta'
+            if (attempt < MAX_RETRIES) {
+              messages.push({ role: 'assistant', content })
+              messages.push({ role: 'user', content: `A resposta não inclui uma query SQL. Gera uma consulta SELECT válida e inclui o campo "sql".` })
+              tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
+              continue
+            }
+            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
+            tracer.flushTrace(traceId)
+            return Err(ErrorFactory.business('O assistente não conseguiu gerar uma consulta SQL', 'NO_SQL_GENERATED', COMPONENT))
+          }
+
           const gate3 = guardrails.validateGate3(generatedSql)
           if (!gate3.success) {
             error = gate3.error.message
             sqlValid = false
+            if (attempt < MAX_RETRIES) {
+              messages.push({ role: 'assistant', content })
+              messages.push({ role: 'user', content: buildReflectionPrompt(data.query, generatedSql, gate3.error.message) })
+              tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
+              continue
+            }
             circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
-            tracer.endSpan(traceId, 'gate3-sql-validation', undefined, error)
+            tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
             return gate3
           }
-
-          sqlValid = true
 
           const neuroSymbolic = guardrails.validateNeurosymbolic(generatedSql, data.filters)
           if (!neuroSymbolic.success) {
             error = neuroSymbolic.error.message
             sqlValid = false
+            if (attempt < MAX_RETRIES) {
+              messages.push({ role: 'assistant', content })
+              messages.push({ role: 'user', content: buildReflectionPrompt(data.query, generatedSql, neuroSymbolic.error.message) })
+              tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
+              continue
+            }
             circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
-            tracer.endSpan(traceId, 'gate3-sql-validation', undefined, error)
+            tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
             return neuroSymbolic
           }
 
-          tracer.endSpan(traceId, 'gate3-sql-validation', { sqlValid: true })
+          sqlValid = true
+          tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, { sqlValid: true })
 
           tracer.startSpan(traceId, 'sql-execution', { sql: generatedSql.substring(0, 200) })
 
@@ -245,20 +285,21 @@ export const createAgentService = (
             result = rows as Record<string, unknown>[]
             rowsReturned = rows.length
             tracer.endSpan(traceId, 'sql-execution', { rowsReturned })
+            break
           } catch (err) {
             error = `Erro ao executar SQL: ${err instanceof Error ? err.message : String(err)}`
             sqlValid = false
+            if (attempt < MAX_RETRIES) {
+              messages.push({ role: 'assistant', content })
+              messages.push({ role: 'user', content: buildReflectionPrompt(data.query, generatedSql, error) })
+              tracer.endSpan(traceId, 'sql-execution', undefined, error)
+              continue
+            }
             circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
             tracer.endSpan(traceId, 'sql-execution', undefined, error)
             tracer.flushTrace(traceId)
             return Err(ErrorFactory.business('Erro ao executar consulta SQL gerada', 'SQL_EXECUTION_ERROR', COMPONENT))
           }
-        } else {
-          error = 'Não foi possível gerar SQL a partir da pergunta'
-          circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
-          tracer.endSpan(traceId, 'gate3-sql-validation', undefined, error)
-          tracer.flushTrace(traceId)
-          return Err(ErrorFactory.business('O assistente não conseguiu gerar uma consulta SQL', 'NO_SQL_GENERATED', COMPONENT))
         }
 
         circuitBreaker.recordCall({
@@ -267,6 +308,11 @@ export const createAgentService = (
           latencyMs: Date.now() - startMs,
           tokensUsed,
         })
+
+        if (rowsReturned === 0 && generatedSql) {
+          aiResponse = 'Não foram encontrados dados correspondentes à sua pergunta na base de dados atual. Tente reformular a pergunta ou verifique se os dados foram carregados.'
+          result = null
+        }
       } catch (err) {
         error = err instanceof Error ? err.message : String(err)
         logger.error({ err, query: data.query }, 'Agent query failed')

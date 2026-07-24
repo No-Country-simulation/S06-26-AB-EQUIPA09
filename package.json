@@ -1,0 +1,9 @@
+{
+  "name": "chronus",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --parallel dev:backend dev:web",
+    "dev:backend": "bun --cwd backend run dev",
+    "dev:web": "bun --cwd web run dev"
+  }
+}

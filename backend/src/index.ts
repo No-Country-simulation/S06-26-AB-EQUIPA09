@@ -10,6 +10,7 @@ import { authController } from './modules/auth/infrastructure/http/controllers/a
 import { usersController } from './modules/users/infrastructure/http/controllers/user.controller'
 import { regionsController } from './modules/regions/infrastructure/http/controllers/region.controller'
 import { ingestionController } from './modules/ingestion/infrastructure/http/controllers/ingestion.controller'
+import { uploadController } from './modules/ingestion/infrastructure/http/controllers/upload.controller'
 import { coverageController } from './modules/coverage/infrastructure/http/controllers/coverage.controller'
 import { indicatorController } from './modules/indicators/infrastructure/http/controllers/indicator.controller'
 import { staffIndicatorController } from './modules/indicators/infrastructure/http/controllers/staff-indicator.controller'
@@ -136,6 +137,7 @@ const app = new Elysia()
   .use(alertController)
   .use(agentController)
   .use(notificationController)
+  .use(uploadController)
 
   .onStart(async () => {
     logger.info(`chronus API running on http://localhost:${env.PORT}`)

@@ -6,6 +6,7 @@ const NAV = [
   { to: '/app', label: 'Visão Geral', icon: '▦', end: true },
   { to: '/app/mapa', label: 'Mapa de Cobertura', icon: '◎', end: false },
   { to: '/app/consulta', label: 'Consulta IA', icon: '✦', end: false },
+  { to: '/app/upload-csv', label: 'Upload CSV', icon: '↑', end: false },
   { to: '/app/perfil', label: 'Perfil', icon: '◉', end: false },
 ]
 
