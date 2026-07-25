@@ -89,7 +89,7 @@ async function main() {
     console.log('\n--- Ingesting tensor_concentracao ---')
     const content = readFileSync(concFile, 'utf-8')
     let count = 0
-    const coverageMap = new Map<string, { regionId: string; max: number; min: number; daySum: number; dayN: number; nightSum: number; nightN: number; sigSum: number; sigN: number; total: number }>()
+    const coverageMap = new Map<string, { regionId: string; period: string; max: number; min: number; daySum: number; dayN: number; nightSum: number; nightN: number; sigSum: number; sigN: number; total: number }>()
 
     for (const row of readCsv(content)) {
       const [reg] = await sql`SELECT id FROM regions WHERE zone_id = ${row.cluster} LIMIT 1`
@@ -110,7 +110,7 @@ async function main() {
       // Coverage accumulator
       const period = (row.day_date ?? '').slice(0, 7) || '2026-03'
       const key = `${reg.id}:${period}`
-      const acc = coverageMap.get(key) ?? { regionId: reg.id, max: 0, min: Infinity, daySum: 0, dayN: 0, nightSum: 0, nightN: 0, sigSum: 0, sigN: 0, total: 0 }
+      const acc = coverageMap.get(key) ?? { regionId: reg.id, period, max: 0, min: Infinity, daySum: 0, dayN: 0, nightSum: 0, nightN: 0, sigSum: 0, sigN: 0, total: 0 }
       acc.max = Math.max(acc.max, people)
       acc.min = Math.min(acc.min, people)
       acc.sigSum += signal; acc.sigN++
