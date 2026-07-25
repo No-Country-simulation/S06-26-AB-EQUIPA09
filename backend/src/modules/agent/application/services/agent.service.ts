@@ -61,6 +61,8 @@ Categories:
 
 CRITICAL: If the message asks about ANYTHING that could be stored in a database (movements, distances, numbers, locations, coverage, people, clusters, routes), classify as data_query.
 
+LANGUAGE RULE: For general_chat, the "response" field MUST be written in the EXACT SAME LANGUAGE as the user's message. If the user writes in Portuguese, respond in Portuguese. If in English, respond in English.
+
 User message: "${query}"
 
 Respond with ONLY: {"intent": "data_query"} or {"intent": "general_chat", "response": "your friendly reply in the same language as the user"}`,
@@ -106,6 +108,8 @@ const buildPrompt = (query: string, filters?: { region?: string; indicator?: str
 Generate a single SELECT query. Never generate INSERT, UPDATE, DELETE, or DDL.
 Respond in JSON: { sql: string, explanation: string }
 
+CRITICAL LANGUAGE RULE: The "explanation" field MUST be written in the SAME LANGUAGE as the user's query below. If the query is in Portuguese, write the explanation in Portuguese. If in English, write in English. Mirror the user's language exactly.
+
 SCHEMA_CONTEXT:
 ${SCHEMA_CONTEXT_FOR_AGENT}${filterText}
 
@@ -124,6 +128,8 @@ const buildReflectionPrompt = (
 ): string => {
   return `You are a read-only SQL analyst. Your previous query was rejected.
 Fix it based on the error below. Respond in JSON: { sql: string, explanation: string }
+
+CRITICAL LANGUAGE RULE: The "explanation" field MUST be written in the SAME LANGUAGE as the user's query. Mirror the user's language exactly.
 
 Previous query:
 ${previousSql}
@@ -246,7 +252,8 @@ export const createAgentService = (
 
       // Cohere v2 API only supports "user" and "assistant" roles — no "system" role.
       // Prepend system instructions to the first user message.
-      const SYSTEM_INSTRUCTIONS = 'You are a read-only SQL analyst. Respond in JSON format only.'
+      const SYSTEM_INSTRUCTIONS = `You are a read-only SQL analyst. Respond in JSON format only.
+IMPORTANT: The "explanation" field MUST be written in the SAME LANGUAGE as the user's query. If the user writes in Portuguese, respond in Portuguese. If in English, respond in English. If in Spanish, respond in Spanish. Always mirror the user's language.`
       const messages: Array<{ role: string; content: string }> = [
         { role: 'user', content: `${SYSTEM_INSTRUCTIONS}\n\n${buildPrompt(data.query, data.filters)}` },
       ]

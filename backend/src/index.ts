@@ -26,6 +26,7 @@ import { createStaffSessionRepository } from './modules/staff/infrastructure/per
 import { createStaffActivityLogRepository } from './modules/staff/infrastructure/persistence/staff-activity-log.repository'
 import { createStaffSessionService } from './modules/staff/application/services/staff-session.service'
 import { db } from '@/db'
+import { startSessionCleanup } from '@/shared/auth/cleanup-sessions'
 
 const app = new Elysia()
 .use(
@@ -153,6 +154,8 @@ const app = new Elysia()
     } catch (error) {
       logger.error({ err: error }, 'Staff seed failed on startup')
     }
+
+    startSessionCleanup()
   })
   .onStop(() => {
     logger.info('Server stopped gracefully')

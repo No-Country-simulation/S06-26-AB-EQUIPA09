@@ -22,6 +22,7 @@ type ProgramForm = {
   name: string
   description: string
   category: string
+  organization: string
   regionId: string
   startDate: string
   endDate: string
@@ -32,6 +33,7 @@ const emptyForm: ProgramForm = {
   name: '',
   description: '',
   category: 'training',
+  organization: '',
   regionId: '',
   startDate: '',
   endDate: '',
@@ -42,6 +44,7 @@ const toPayload = (form: ProgramForm) => ({
   name: form.name,
   description: form.description || undefined,
   category: form.category,
+  organization: form.organization || undefined,
   regionId: form.regionId || undefined,
   startsAt: form.startDate ? new Date(`${form.startDate}T00:00:00.000Z`).toISOString() : undefined,
   endsAt: form.endDate ? new Date(`${form.endDate}T23:59:59.000Z`).toISOString() : undefined,
@@ -79,6 +82,7 @@ export default function StaffProgramas() {
       name: program.name,
       description: program.description ?? '',
       category: program.category,
+      organization: program.organization ?? '',
       regionId: program.regionId ?? '',
       startDate: program.startsAt ? program.startsAt.slice(0, 10) : '',
       endDate: program.endsAt ? program.endsAt.slice(0, 10) : '',
@@ -87,6 +91,7 @@ export default function StaffProgramas() {
   }
 
   async function handleDelete(id: string) {
+    if (!window.confirm('Tem certeza que deseja apagar este programa? Esta ação não pode ser desfeita.')) return
     setError('')
     try {
       await deleteProgram.mutateAsync(id)
@@ -136,6 +141,12 @@ export default function StaffProgramas() {
             value={form.url}
             onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
             placeholder="url"
+            className="px-3.5 py-2.5 rounded-lg border border-ink-border bg-ink-850 text-[14px] text-mist-50 outline-none focus:border-signal-500"
+          />
+          <input
+            value={form.organization}
+            onChange={e => setForm(f => ({ ...f, organization: e.target.value }))}
+            placeholder="Organização"
             className="px-3.5 py-2.5 rounded-lg border border-ink-border bg-ink-850 text-[14px] text-mist-50 outline-none focus:border-signal-500"
           />
           <input

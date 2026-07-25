@@ -2,7 +2,6 @@ import { Elysia, t } from 'elysia'
 import { db } from '@/db'
 import { createProgramRepository } from '../../persistence/program.repository'
 import { createProgramService } from '@/modules/programs/application/services/program.service'
-import { authMiddleware } from '@/middlewares/auth.middleware'
 import { validateWithZod } from '@/shared/result/zod-integration'
 import { programFiltersSchema, programIdSchema } from '../../../application/dtos/program.dto'
 import type { Result } from '@/shared/result/types'
@@ -14,7 +13,6 @@ const programRepo = createProgramRepository(db)
 const programSvc  = createProgramService(programRepo)
 
 export const programController = new Elysia({ prefix: '/programs' })
-  .use(authMiddleware())
 
   .get('/',
     async ({ query }): Promise<Result<ListResponse<ProgramResponseDTO[]>, AppError>> => {

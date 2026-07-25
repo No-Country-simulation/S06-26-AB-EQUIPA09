@@ -1,12 +1,41 @@
+import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
+// In-memory staff refresh token (not persisted for security)
+let staffRefreshToken: string | null = null
+
+export const setStaffRefreshToken = (token: string | null) => { staffRefreshToken = token }
+
 export const staffApi = axios.create({
   baseURL: API,
   withCredentials: true,
 })
+
+// Auto-refresh interceptor for staff auth
+staffApi.interceptors.response.use(
+  res => res,
+  async err => {
+    const original = err.config
+    if (err.response?.status === 401 && !original._retry && staffRefreshToken) {
+      original._retry = true
+      try {
+        const { data } = await axios.post(`${API}/staff/refresh`, { refreshToken: staffRefreshToken }, { withCredentials: true })
+        const result = data?.value ?? data
+        if (result?.refreshToken) {
+          staffRefreshToken = result.refreshToken
+        }
+        return staffApi(original)
+      } catch {
+        staffRefreshToken = null
+        window.location.href = '/staff/login'
+      }
+    }
+    return Promise.reject(err)
+  }
+)
 
 type ListResponse<T> = {
   data?: T[]
@@ -68,10 +97,15 @@ export type Program = {
   name: string
   description: string | null
   category: string
+  organization: string | null
+  municipality: string | null
+  state: string | null
   url: string | null
   isActive: boolean
   startsAt: string | null
   endsAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export type Region = {
@@ -117,7 +151,11 @@ export function useStaffLogin() {
   return useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
       const { data } = await staffApi.post('/staff/login', credentials)
-      return unwrap<{ staff: StaffUser; refreshToken: string }>(data)
+      const result = unwrap<{ staff: StaffUser; refreshToken: string }>(data)
+      if (result?.refreshToken) {
+        staffRefreshToken = result.refreshToken
+      }
+      return result
     },
   })
 }
@@ -130,6 +168,7 @@ export function useStaffLogout() {
       return unwrap(data)
     },
     onSettled: () => {
+      staffRefreshToken = null
       queryClient.removeQueries({ queryKey: ['staffMe'] })
     },
   })
@@ -176,7 +215,12 @@ export function useUploadCSV(id: string) {
       })
       return unwrap(data)
     },
-    onSuccess: () => invalidateStaff(queryClient, ['staffDataSources']),
+    onSuccess: () => {
+      invalidateStaff(queryClient, ['staffDataSources'])
+      queryClient.invalidateQueries({ queryKey: ['regioes'] })
+      queryClient.invalidateQueries({ queryKey: ['programs'] })
+      queryClient.invalidateQueries({ queryKey: ['indicadores'] })
+    },
   })
 }
 
@@ -189,7 +233,13 @@ export function useUploadCvssCSVs() {
       const { data } = await staffApi.post('/staff/cvss/upload', formData)
       return unwrap<CvssIngestionResult>(data)
     },
-    onSuccess: () => invalidateStaff(queryClient, ['staffDataSources']),
+    onSuccess: () => {
+      invalidateStaff(queryClient, ['staffDataSources'])
+      // Invalidate public-facing data so dashboard/map refresh
+      queryClient.invalidateQueries({ queryKey: ['regioes'] })
+      queryClient.invalidateQueries({ queryKey: ['programs'] })
+      queryClient.invalidateQueries({ queryKey: ['indicadores'] })
+    },
   })
 }
 
@@ -216,7 +266,10 @@ export function useCreateIndicador() {
       const { data } = await staffApi.post('/staff/indicators', payload)
       return unwrap<Indicator>(data)
     },
-    onSuccess: () => invalidateStaff(queryClient, ['staffIndicadores']),
+    onSuccess: () => {
+      invalidateStaff(queryClient, ['staffIndicadores'])
+      queryClient.invalidateQueries({ queryKey: ['indicadores'] })
+    },
   })
 }
 
@@ -250,7 +303,10 @@ export function useCreatePrograma() {
       const { data } = await staffApi.post('/staff/programs', payload)
       return unwrap<Program>(data)
     },
-    onSuccess: () => invalidateStaff(queryClient, ['staffProgramas']),
+    onSuccess: () => {
+      invalidateStaff(queryClient, ['staffProgramas'])
+      queryClient.invalidateQueries({ queryKey: ['programs'] })
+    },
   })
 }
 
@@ -261,7 +317,10 @@ export function useUpdatePrograma() {
       const { data } = await staffApi.patch(`/staff/programs/${id}`, payload)
       return unwrap<Program>(data)
     },
-    onSuccess: () => invalidateStaff(queryClient, ['staffProgramas']),
+    onSuccess: () => {
+      invalidateStaff(queryClient, ['staffProgramas'])
+      queryClient.invalidateQueries({ queryKey: ['programs'] })
+    },
   })
 }
 
@@ -272,7 +331,10 @@ export function useDeletePrograma() {
       const { data } = await staffApi.delete(`/staff/programs/${id}`)
       return unwrap(data)
     },
-    onSuccess: () => invalidateStaff(queryClient, ['staffProgramas']),
+    onSuccess: () => {
+      invalidateStaff(queryClient, ['staffProgramas'])
+      queryClient.invalidateQueries({ queryKey: ['programs'] })
+    },
   })
 }
 

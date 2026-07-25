@@ -8,7 +8,13 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 // Converte a resposta do backend em Regiao[] compatível com o nosso tipo
-function mapBackendRegioes(regions: any[], coverages: any[], indicatorsData: any[]): Regiao[] {
+function mapBackendRegioes(regions: any[], coverages: any[], indicatorsData: any[], indicatorsMeta: any[] = []): Regiao[] {
+  // Build a lookup map: indicatorId → { slug, name, category, unit }
+  const metaById = new Map<string, { slug: string; name: string; category: string; unit: string }>()
+  for (const m of indicatorsMeta) {
+    const id = m.id ?? m.indicator_id
+    if (id) metaById.set(id, { slug: m.slug ?? '', name: m.name ?? '', category: m.category ?? '', unit: m.unit ?? '%' })
+  }
   return regions.map((r: any) => {
     const cov = coverages.find((c: any) => c.regionId === r.id || c.region_id === r.id)
     const score = cov?.networkCoverageScore ?? cov?.network_coverage_score ?? cov?.coverageScore ?? cov?.coverage_score ?? cov?.coverageRating ?? 0
@@ -60,14 +66,19 @@ function mapBackendRegioes(regions: any[], coverages: any[], indicatorsData: any
 
     const indicadores = indData.length > 0
       ? indData.map((d: any) => {
-          const rawSlug = d.indicator?.slug ?? d.slug ?? d.indicatorSlug ?? ''
+          // Try to resolve indicator metadata from the lookup map
+          const indicatorId = d.indicatorId ?? d.indicator_id
+          const meta = indicatorId ? metaById.get(indicatorId) : undefined
+
+          // Fallback to fields on the data object itself
+          const rawSlug = meta?.slug ?? d.indicator?.slug ?? d.slug ?? d.indicatorSlug ?? ''
           const slug = SLUG_MAP[rawSlug] ?? rawSlug
           return {
             slug,
-            nome: NOME_MAP[slug] ?? d.indicator?.name ?? d.name ?? slug,
-            categoria: CAT_MAP[slug] ?? 'formacoes' as const,
+            nome: meta?.name ?? NOME_MAP[slug] ?? d.indicator?.name ?? d.name ?? slug,
+            categoria: (CAT_MAP[slug] ?? meta?.category ?? 'formacoes') as Regiao['indicadores'][0]['categoria'],
             valor: Math.round(Number(d.value ?? d.valor ?? 0)),
-            unidade: d.unit ?? d.unidade ?? '%',
+            unidade: meta?.unit ?? d.unit ?? d.unidade ?? '%',
           }
         })
       : REGIOES_MOCK[0].indicadores.map(i => ({ ...i, valor: 0 }))
@@ -111,19 +122,21 @@ export function useRegioes() {
     queryFn: async () => {
       if (USE_MOCK) return REGIOES_MOCK
 
-      const [regioesRes, coverageRes, indicatorsRes] = await Promise.all([
-        api.get('/regions', { params: { perPage: 100 } }),
+      const [regioesRes, coverageRes, indicatorsRes, indicatorsMetaRes] = await Promise.all([
+        api.get('/regions', { params: { pageSize: 100 } }),
         api.get('/coverage'),
-        api.get('/indicators/data', { params: { perPage: 500 } }),
+        api.get('/indicators/data', { params: { pageSize: 500 } }),
+        api.get('/indicators'),
       ])
 
       const regions = regioesRes.data?.data ?? regioesRes.data?.regions ?? regioesRes.data ?? []
       const coverages = coverageRes.data?.data ?? coverageRes.data?.coverages ?? coverageRes.data ?? []
       const indicators = indicatorsRes.data?.data ?? indicatorsRes.data?.indicators ?? indicatorsRes.data ?? []
+      const indicatorsMeta = indicatorsMetaRes.data?.data ?? indicatorsMetaRes.data?.indicators ?? indicatorsMetaRes.data ?? []
 
-      return mapBackendRegioes(regions, coverages, indicators)
+      return mapBackendRegioes(regions, coverages, indicators, indicatorsMeta)
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30_000,
     retry: 2,
   })
 }
@@ -151,12 +164,12 @@ export function usePrograms(regionId?: string) {
     queryKey: ['programs', regionId],
     queryFn: async () => {
       if (USE_MOCK) return []
-      const params = regionId ? { regionId, perPage: 50 } : { perPage: 50 }
+      const params = regionId ? { regionId, pageSize: 50 } : { pageSize: 50 }
       const { data } = await api.get('/programs', { params })
       return data?.data ?? data?.programs ?? data ?? []
     },
     enabled: !USE_MOCK,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30_000,
   })
 }
 
@@ -169,6 +182,6 @@ export function useIndicadores() {
       return data?.data ?? data?.indicators ?? data ?? []
     },
     enabled: !USE_MOCK,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 30_000,
   })
 }

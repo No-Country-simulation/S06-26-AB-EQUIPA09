@@ -18,7 +18,7 @@ import StaffIndicadores from './pages/staff/StaffIndicadores'
 import StaffProgramas from './pages/staff/StaffProgramas'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true, staleTime: 30_000 } },
 })
 
 export default function App() {

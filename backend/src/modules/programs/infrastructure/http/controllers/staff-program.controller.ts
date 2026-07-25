@@ -19,6 +19,23 @@ const programSvc  = createProgramService(programRepo)
 export const staffProgramController = new Elysia({ prefix: '/staff/programs' })
   .use(staffAuthMiddleware())
 
+  .get('/',
+    async ({ staffAuth, query }): Promise<Result<{ data: ProgramResponseDTO[]; pagination: { currentPage: number; perPage: number; totalItems: number; totalPages: number } }, AppError>> => {
+      if (!staffAuth.success) return staffAuth
+      return programSvc.list({
+        page: Number(query.page) || 1,
+        pageSize: Number(query.pageSize) || 50,
+      })
+    },
+    {
+      query: t.Object({
+        page:     t.Optional(t.String()),
+        pageSize: t.Optional(t.String()),
+      }),
+      detail: { tags: ['staff-programs'], summary: 'Listar programas' },
+    }
+  )
+
   .post('/',
     async ({ staffAuth, body }): Promise<Result<ProgramResponseDTO, AppError>> => {
       if (!staffAuth.success) return staffAuth

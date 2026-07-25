@@ -64,17 +64,14 @@ export function useLogin() {
       return res.data
     },
     onSuccess: data => {
-console.log("LOGIN RESPONSE", data)
-
-  setAuth(
-    {
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
+      setAuth(
+        {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        },
+        data.user
+      )
     },
-    data.user
-  )
-
-  console.log("STORE", useAuthStore.getState())    },
   })
 }
 export function useLogout() {

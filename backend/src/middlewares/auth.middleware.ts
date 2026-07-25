@@ -42,8 +42,11 @@ export const requireUser = (
 export const authMiddleware = () =>
   new Elysia({ name: 'auth' })
 
-    .derive({ as: 'global' }, async ({ cookie }): Promise<{ auth: AuthResult; user: AuthResult }> => {
-      const rawToken = cookie['auth_token']?.value
+    .derive({ as: 'global' }, async ({ cookie, request }): Promise<{ auth: AuthResult; user: AuthResult }> => {
+      // Accept token from cookie OR Authorization header (Bearer)
+      const authHeader = request?.headers?.get('authorization') ?? ''
+      const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+      const rawToken = bearerToken || cookie['auth_token']?.value
       if (!rawToken || typeof rawToken !== 'string' || rawToken.trim() === '') {
         const failed = Err(
           ErrorFactory.unauthorized('Autenticação necessária', 'missing_token', 'AuthMiddleware')

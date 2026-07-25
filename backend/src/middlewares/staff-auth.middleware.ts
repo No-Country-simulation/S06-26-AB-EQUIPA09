@@ -42,8 +42,11 @@ export const getStaffAuth = (context: { staffAuth: StaffAuthResult }): StaffAuth
 export const staffAuthMiddleware = () =>
   new Elysia({ name: 'staff-auth' })
 
-    .derive({ as: 'global' }, async ({ cookie }): Promise<{ staffAuth: StaffAuthResult }> => {
-      const rawToken = cookie['staff_token']?.value
+    .derive({ as: 'global' }, async ({ cookie, request }): Promise<{ staffAuth: StaffAuthResult }> => {
+      // Accept token from cookie OR Authorization header (Bearer)
+      const authHeader = request?.headers?.get('authorization') ?? ''
+      const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+      const rawToken = bearerToken || cookie['staff_token']?.value
       if (!rawToken || typeof rawToken !== 'string' || rawToken.trim() === '') {
         return {
           staffAuth: Err(

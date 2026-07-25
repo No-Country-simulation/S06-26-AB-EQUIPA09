@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../hooks/useAuth'
 
 type UploadMode = 'csv' | 'xlsx'
@@ -9,6 +9,7 @@ export default function UploadCsv() {
   const [files, setFiles] = useState<File[]>([])
   const [message, setMessage] = useState('')
   const [success, setSuccess] = useState(false)
+  const queryClient = useQueryClient()
 
   const upload = useMutation({
     mutationFn: async (payload: FormData) => {
@@ -16,6 +17,11 @@ export default function UploadCsv() {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['regioes'] })
+      queryClient.invalidateQueries({ queryKey: ['programs'] })
+      queryClient.invalidateQueries({ queryKey: ['indicadores'] })
     },
   })
 
