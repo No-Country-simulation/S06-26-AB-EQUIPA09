@@ -1,12 +1,15 @@
 /**
- * Ingest all CVSS CSV files from the cvss/ directory into the local database.
+ * Ingest all CVSS CSV files into the database.
  * Usage: bun run src/scripts/ingest-cvss.ts [directory]
+ * Respects DATABASE_URL and DB_SSL env vars for production use.
  */
 import path from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
 import postgres from 'postgres'
+import 'dotenv/config'
 
 const DB_URL = process.env.DATABASE_URL || `postgresql://${process.env.DB_USER || 'edgar'}:${process.env.DB_PASSWORD || '123456'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_DATABASE || 'postgres'}`
+const DB_SSL = process.env.DB_SSL === 'true' || /sslmode=require/.test(DB_URL)
 
 const BATCH_SIZE = 500
 
@@ -51,7 +54,12 @@ async function main() {
   if (!existsSync(dir)) { console.error(`Dir not found: ${dir}`); process.exit(1) }
 
   console.log(`Connecting to: ${DB_URL.replace(/:[^:]*@/, ':***@')}`)
-  const sql = postgres(DB_URL, { max: 5, connect_timeout: 10 })
+  console.log(`SSL: ${DB_SSL ? 'enabled' : 'disabled'}`)
+  const sql = postgres(DB_URL, {
+    max: 5,
+    connect_timeout: 30,
+    ssl: DB_SSL ? { rejectUnauthorized: false } : false,
+  })
 
   // Verify connection
   try { await sql`SELECT 1` } catch (e: any) {
