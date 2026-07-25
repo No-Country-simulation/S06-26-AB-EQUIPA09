@@ -1,6 +1,7 @@
 import { createReadStream, existsSync } from 'node:fs'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
+import { sql as dbSql } from '@/db'
 import type { IDataSourceRepository, ICDRViewRecordRepository } from '../ports/ingestion.port'
 import type { IRegionRepository } from '@/modules/regions/application/ports/region.port'
 import type { IRegionCoverageRepository } from '@/modules/coverage/application/ports/coverage.port'
@@ -407,30 +408,245 @@ export const createCvssIngestionService = (
     return { rowsRead, recordsInserted, regionsUpserted, stationsUpserted, coverageRowsUpserted }
   }
 
+  // --- Mobility Flows (tensor_fluxo_vias.csv) ---
+  const ingestMobilityFlows = async (rows: AsyncGenerator<CsvRow>, sourceUrl: string) => {
+    const source = await ensureDataSource(
+      'cvss-tensor-fluxo-vias',
+      'CVSS - Tensor Fluxo Vias',
+      'Fluxos de mobilidade entre antenas (antenna-to-antenna)',
+      sourceUrl,
+    )
+    let inserted = 0
+    const batch: unknown[][] = []
+
+    for await (const row of rows) {
+      batch.push([
+        row.ecgi_origem, floatValue(row.lat_origem), floatValue(row.lon_origem),
+        row.cluster_origem, normalizeMunicipality(row.municipio_origem),
+        row.ecgi_destino, floatValue(row.lat_destino), floatValue(row.lon_destino),
+        row.cluster_destino, normalizeMunicipality(row.municipio_destino),
+        intValue(row.n_usuarios), intValue(row.n_transicoes),
+        floatValue(row.dist_km), (row.periodo_predominante || '').toUpperCase(),
+        floatValue(row.pct_do_cluster_origem),
+      ])
+
+      if (batch.length >= BATCH_SIZE) {
+        await flushMobilityFlows(batch)
+        inserted += batch.length
+        batch.length = 0
+      }
+    }
+    if (batch.length > 0) {
+      await flushMobilityFlows(batch)
+      inserted += batch.length
+    }
+    await dataSourceRepo.updateLastIngestedAt(source.id)
+    return inserted
+  }
+
+  // --- Mobility OD (tensor_od.csv) ---
+  const ingestMobilityOd = async (rows: AsyncGenerator<CsvRow>, sourceUrl: string) => {
+    const source = await ensureDataSource(
+      'cvss-tensor-od',
+      'CVSS - Tensor OD',
+      'Matriz Origem-Destino agregada por cluster',
+      sourceUrl,
+    )
+    let inserted = 0
+    const batch: unknown[][] = []
+
+    for await (const row of rows) {
+      batch.push([
+        row.cluster_origem, normalizeMunicipality(row.municipio_origem),
+        floatValue(row.lat_origem), floatValue(row.lon_origem),
+        row.cluster_destino, normalizeMunicipality(row.municipio_destino),
+        floatValue(row.lat_destino), floatValue(row.lon_destino),
+        row.mesmo_cluster === '1',
+        intValue(row.n_usuarios), intValue(row.n_viagens),
+        floatValue(row.dist_media_km), (row.periodo_predominante || '').toUpperCase(),
+      ])
+
+      if (batch.length >= BATCH_SIZE) {
+        await flushMobilityOd(batch)
+        inserted += batch.length
+        batch.length = 0
+      }
+    }
+    if (batch.length > 0) {
+      await flushMobilityOd(batch)
+      inserted += batch.length
+    }
+    await dataSourceRepo.updateLastIngestedAt(source.id)
+    return inserted
+  }
+
+  // --- Travel Times (tensor_tempo_deslocamento.csv) ---
+  const ingestTravelTimes = async (rows: AsyncGenerator<CsvRow>, sourceUrl: string) => {
+    const source = await ensureDataSource(
+      'cvss-tensor-tempo-deslocamento',
+      'CVSS - Tensor Tempo Deslocamento',
+      'Estatisticas de distancia e tempo entre clusters',
+      sourceUrl,
+    )
+    let inserted = 0
+    const batch: unknown[][] = []
+
+    for await (const row of rows) {
+      batch.push([
+        row.cluster_origem, row.cluster_destino,
+        row.mesmo_cluster === '1',
+        intValue(row.n_observacoes),
+        floatValue(row.dist_media_km), floatValue(row.dist_p25_km), floatValue(row.dist_p75_km),
+        (row.periodo_predominante || '').toUpperCase(),
+      ])
+
+      if (batch.length >= BATCH_SIZE) {
+        await flushTravelTimes(batch)
+        inserted += batch.length
+        batch.length = 0
+      }
+    }
+    if (batch.length > 0) {
+      await flushTravelTimes(batch)
+      inserted += batch.length
+    }
+    await dataSourceRepo.updateLastIngestedAt(source.id)
+    return inserted
+  }
+
+  // --- Mobility Routes (trajetos_comuns.csv) ---
+  const ingestMobilityRoutes = async (rows: AsyncGenerator<CsvRow>, sourceUrl: string) => {
+    const source = await ensureDataSource(
+      'cvss-trajetos-comuns',
+      'CVSS - Trajetos Comuns',
+      'Rotas mais comuns de origem-destino',
+      sourceUrl,
+    )
+    let inserted = 0
+    const batch: unknown[][] = []
+
+    for await (const row of rows) {
+      batch.push([
+        row.cluster_origem, normalizeMunicipality(row.municipio_origem),
+        floatValue(row.lat_origem), floatValue(row.lon_origem),
+        row.cluster_destino, normalizeMunicipality(row.municipio_destino),
+        floatValue(row.lat_destino), floatValue(row.lon_destino),
+        row.mesmo_cluster === '1',
+        intValue(row.n_usuarios), intValue(row.n_viagens),
+        floatValue(row.dist_media_km), (row.periodo_predominante || '').toUpperCase(),
+      ])
+
+      if (batch.length >= BATCH_SIZE) {
+        await flushMobilityRoutes(batch)
+        inserted += batch.length
+        batch.length = 0
+      }
+    }
+    if (batch.length > 0) {
+      await flushMobilityRoutes(batch)
+      inserted += batch.length
+    }
+    await dataSourceRepo.updateLastIngestedAt(source.id)
+    return inserted
+  }
+
+  // --- Privacy Summary (sumario_kanon.csv) ---
+  const ingestPrivacySummary = async (rows: AsyncGenerator<CsvRow>, sourceUrl: string) => {
+    const source = await ensureDataSource(
+      'cvss-sumario-kanon',
+      'CVSS - Sumario K-anonimato',
+      'Resumo de privacidade k-anonimato do dataset',
+      sourceUrl,
+    )
+    const summary: Record<string, string> = {}
+    for await (const row of rows) {
+      if (row.parametro && row.valor) {
+        summary[row.parametro] = row.valor
+      }
+    }
+    await dataSourceRepo.updateLastIngestedAt(source.id)
+    return summary
+  }
+
+  // --- Bulk insert helpers ---
+  const flushMobilityFlows = async (batch: unknown[][]) => {
+    if (batch.length === 0) return
+    const values = batch.map((_, i) => {
+      const o = i * 15
+      return `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6},$${o+7},$${o+8},$${o+9},$${o+10},$${o+11},$${o+12},$${o+13},$${o+14},$${o+15})`
+    }).join(',')
+    await dbSql.unsafe(`INSERT INTO mobility_flows (ecgi_origin,lat_origin,lng_origin,cluster_origin,municipality_origin,ecgi_destination,lat_destination,lng_destination,cluster_destination,municipality_destination,n_users,n_transitions,dist_km,period_predominant,pct_of_cluster_origin) VALUES ${values}`, batch.flat() as never[])
+  }
+
+  const flushMobilityOd = async (batch: unknown[][]) => {
+    if (batch.length === 0) return
+    const values = batch.map((_, i) => {
+      const o = i * 13
+      return `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6},$${o+7},$${o+8},$${o+9},$${o+10},$${o+11},$${o+12},$${o+13})`
+    }).join(',')
+    await dbSql.unsafe(`INSERT INTO mobility_od (cluster_origin,municipality_origin,lat_origin,lng_origin,cluster_destination,municipality_destination,lat_destination,lng_destination,mesmo_cluster,n_users,n_viagens,dist_media_km,period_predominant) VALUES ${values}`, batch.flat() as never[])
+  }
+
+  const flushTravelTimes = async (batch: unknown[][]) => {
+    if (batch.length === 0) return
+    const values = batch.map((_, i) => {
+      const o = i * 8
+      return `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6},$${o+7},$${o+8})`
+    }).join(',')
+    await dbSql.unsafe(`INSERT INTO travel_times (cluster_origin,cluster_destination,mesmo_cluster,n_observacoes,dist_media_km,dist_p25_km,dist_p75_km,period_predominant) VALUES ${values}`, batch.flat() as never[])
+  }
+
+  const flushMobilityRoutes = async (batch: unknown[][]) => {
+    if (batch.length === 0) return
+    const values = batch.map((_, i) => {
+      const o = i * 13
+      return `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6},$${o+7},$${o+8},$${o+9},$${o+10},$${o+11},$${o+12},$${o+13})`
+    }).join(',')
+    await dbSql.unsafe(`INSERT INTO mobility_routes (cluster_origin,municipality_origin,lat_origin,lng_origin,cluster_destination,municipality_destination,lat_destination,lng_destination,mesmo_cluster,n_users,n_viagens,dist_media_km,period_predominant) VALUES ${values}`, batch.flat() as never[])
+  }
+
   const registerUnmappedSources = async (
-    hasFile: (names: readonly string[]) => boolean,
+    _hasFile: (names: readonly string[]) => boolean,
+    pickContent: (names: readonly string[]) => CvssUploadedFile | undefined,
     sourceUrl: string,
   ) => {
-    const unmapped = [
-      [files.flowRoads, 'cvss-tensor-fluxo-vias', 'CVSS - Tensor Fluxo Vias'],
-      [files.od, 'cvss-tensor-od', 'CVSS - Tensor OD'],
-      [files.travelTime, 'cvss-tensor-tempo-deslocamento', 'CVSS - Tensor Tempo Deslocamento'],
-      [files.commonRoutes, 'cvss-trajetos-comuns', 'CVSS - Trajetos Comuns'],
-      [files.privacy, 'cvss-sumario-kanon', 'CVSS - Sumario K-anonimato'],
-    ] as const
-
     let registered = 0
-    for (const [fileNames, slug, name] of unmapped) {
-      if (!hasFile(fileNames)) continue
-      const source = await ensureDataSource(
-        slug,
-        name,
-        `Fonte detectada. O schema atual ainda nao possui tabela especifica para este arquivo.`,
-        sourceUrl,
-      )
-      await dataSourceRepo.updateLastIngestedAt(source.id)
+
+    // Mobility Flows
+    const flowFile = pickContent(files.flowRoads)
+    if (flowFile) {
+      await ingestMobilityFlows(readCsvContent(flowFile.content), sourceUrl)
       registered++
     }
+
+    // Mobility OD
+    const odFile = pickContent(files.od)
+    if (odFile) {
+      await ingestMobilityOd(readCsvContent(odFile.content), sourceUrl)
+      registered++
+    }
+
+    // Travel Times
+    const travelFile = pickContent(files.travelTime)
+    if (travelFile) {
+      await ingestTravelTimes(readCsvContent(travelFile.content), sourceUrl)
+      registered++
+    }
+
+    // Mobility Routes
+    const routesFile = pickContent(files.commonRoutes)
+    if (routesFile) {
+      await ingestMobilityRoutes(readCsvContent(routesFile.content), sourceUrl)
+      registered++
+    }
+
+    // Privacy Summary (metadata only)
+    const privacyFile = pickContent(files.privacy)
+    if (privacyFile) {
+      await ingestPrivacySummary(readCsvContent(privacyFile.content), sourceUrl)
+      registered++
+    }
+
     return registered
   }
 
@@ -453,6 +669,7 @@ export const createCvssIngestionService = (
       const concentrationResult = await ingestConcentration(readCsvContent(concentration.content), 'upload://cvss')
       const registeredSources = await registerUnmappedSources(
         names => uploaded.some(file => names.includes(file.name)),
+        names => uploaded.find(file => names.includes(file.name)),
         'upload://cvss',
       )
 
@@ -476,10 +693,26 @@ export const createCvssIngestionService = (
 
       const antennaResult = await ingestAntennas(readCsvFile(antennas), `file://${directory}`)
       const concentrationResult = await ingestConcentration(readCsvFile(concentration), `file://${directory}`)
+
+      // For directory ingestion, read files from disk for the mobility CSVs
+      const pickDirFile = (names: readonly string[]): CvssUploadedFile | undefined => {
+        const filePath = pickPath(directory, names)
+        if (!filePath) return undefined
+        const content = require('node:fs').readFileSync(filePath, 'utf-8')
+        return { name: path.basename(filePath), content }
+      }
+
       const registeredSources = await registerUnmappedSources(
         names => Boolean(pickPath(directory, names)),
+        pickDirFile,
         `file://${directory}`,
       )
+
+      const filesProcessed = [path.basename(antennas), path.basename(concentration)]
+      for (const fileNames of Object.values(files)) {
+        const p = pickPath(directory, fileNames)
+        if (p) filesProcessed.push(path.basename(p))
+      }
 
       return {
         recordsInserted: concentrationResult.recordsInserted,
@@ -487,10 +720,7 @@ export const createCvssIngestionService = (
         stationsUpserted: antennaResult.stationsUpserted + concentrationResult.stationsUpserted,
         coverageRowsUpserted: concentrationResult.coverageRowsUpserted,
         registeredSources,
-        filesProcessed: [
-          path.basename(antennas),
-          path.basename(concentration),
-        ],
+        filesProcessed,
       }
     },
   }

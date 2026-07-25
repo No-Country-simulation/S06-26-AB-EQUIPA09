@@ -554,19 +554,119 @@ export const queryLogsRelations = relations(queryLogs, ({ one }) => ({
 }))
 
 
+// ─────────────────────────────────────────────
+// MOBILITY FLOWS (from tensor_fluxo_vias.csv)
+// Tracks user movement between individual antennas.
+// ─────────────────────────────────────────────
+export const mobilityFlows = pgTable('mobility_flows', {
+  id:                id(),
+  ecgiOrigin:        varchar('ecgi_origin', { length: 100 }).notNull(),
+  latOrigin:         doublePrecision('lat_origin').notNull(),
+  lngOrigin:         doublePrecision('lng_origin').notNull(),
+  clusterOrigin:     varchar('cluster_origin', { length: 200 }).notNull(),
+  municipalityOrigin: varchar('municipality_origin', { length: 100 }).notNull(),
+  ecgiDestination:   varchar('ecgi_destination', { length: 100 }).notNull(),
+  latDestination:    doublePrecision('lat_destination').notNull(),
+  lngDestination:    doublePrecision('lng_destination').notNull(),
+  clusterDestination: varchar('cluster_destination', { length: 200 }).notNull(),
+  municipalityDestination: varchar('municipality_destination', { length: 100 }).notNull(),
+  nUsers:            integer('n_users').notNull().default(0),
+  nTransitions:      integer('n_transitions').notNull().default(0),
+  distKm:            real('dist_km'),
+  periodPredominant: varchar('period_predominant', { length: 20 }),
+  pctOfClusterOrigin: real('pct_of_cluster_origin'),
+  createdAt:         now(),
+}, t => ({
+  originIdx:      index('mobility_flows_origin_idx').on(t.clusterOrigin),
+  destinationIdx: index('mobility_flows_dest_idx').on(t.clusterDestination),
+}))
+
+// ─────────────────────────────────────────────
+// MOBILITY OD (from tensor_od.csv)
+// Origin-Destination matrix aggregated by cluster.
+// ─────────────────────────────────────────────
+export const mobilityOd = pgTable('mobility_od', {
+  id:                id(),
+  clusterOrigin:     varchar('cluster_origin', { length: 200 }).notNull(),
+  municipalityOrigin: varchar('municipality_origin', { length: 100 }).notNull(),
+  latOrigin:         doublePrecision('lat_origin').notNull(),
+  lngOrigin:         doublePrecision('lng_origin').notNull(),
+  clusterDestination: varchar('cluster_destination', { length: 200 }).notNull(),
+  municipalityDestination: varchar('municipality_destination', { length: 100 }).notNull(),
+  latDestination:    doublePrecision('lat_destination').notNull(),
+  lngDestination:    doublePrecision('lng_destination').notNull(),
+  mesmoCluster:      boolean('mesmo_cluster').notNull().default(false),
+  nUsers:            integer('n_users').notNull().default(0),
+  nViagens:          integer('n_viagens').notNull().default(0),
+  distMediaKm:       real('dist_media_km'),
+  periodPredominant: varchar('period_predominant', { length: 20 }),
+  createdAt:         now(),
+}, t => ({
+  originIdx:      index('mobility_od_origin_idx').on(t.clusterOrigin),
+  destinationIdx: index('mobility_od_dest_idx').on(t.clusterDestination),
+}))
+
+// ─────────────────────────────────────────────
+// TRAVEL TIMES (from tensor_tempo_deslocamento.csv)
+// Distance and time observations between clusters.
+// ─────────────────────────────────────────────
+export const travelTimes = pgTable('travel_times', {
+  id:                id(),
+  clusterOrigin:     varchar('cluster_origin', { length: 200 }).notNull(),
+  clusterDestination: varchar('cluster_destination', { length: 200 }).notNull(),
+  mesmoCluster:      boolean('mesmo_cluster').notNull().default(false),
+  nObservacoes:      integer('n_observacoes').notNull().default(0),
+  distMediaKm:       real('dist_media_km'),
+  distP25Km:         real('dist_p25_km'),
+  distP75Km:         real('dist_p75_km'),
+  periodPredominant: varchar('period_predominant', { length: 20 }),
+  createdAt:         now(),
+}, t => ({
+  originIdx: index('travel_times_origin_idx').on(t.clusterOrigin),
+}))
+
+// ─────────────────────────────────────────────
+// MOBILITY ROUTES (from trajetos_comuns.csv)
+// Most common origin-destination routes.
+// ─────────────────────────────────────────────
+export const mobilityRoutes = pgTable('mobility_routes', {
+  id:                id(),
+  clusterOrigin:     varchar('cluster_origin', { length: 200 }).notNull(),
+  municipalityOrigin: varchar('municipality_origin', { length: 100 }).notNull(),
+  latOrigin:         doublePrecision('lat_origin').notNull(),
+  lngOrigin:         doublePrecision('lng_origin').notNull(),
+  clusterDestination: varchar('cluster_destination', { length: 200 }).notNull(),
+  municipalityDestination: varchar('municipality_destination', { length: 100 }).notNull(),
+  latDestination:    doublePrecision('lat_destination').notNull(),
+  lngDestination:    doublePrecision('lng_destination').notNull(),
+  mesmoCluster:      boolean('mesmo_cluster').notNull().default(false),
+  nUsers:            integer('n_users').notNull().default(0),
+  nViagens:          integer('n_viagens').notNull().default(0),
+  distMediaKm:       real('dist_media_km'),
+  periodPredominant: varchar('period_predominant', { length: 20 }),
+  createdAt:         now(),
+}, t => ({
+  originIdx:      index('mobility_routes_origin_idx').on(t.clusterOrigin),
+  destinationIdx: index('mobility_routes_dest_idx').on(t.clusterDestination),
+}))
+
 // ═════════════════════════════════════════════
 // SCHEMA CONTEXT — exported for the NL-to-SQL prompt
 // Kept in sync with the real schema — if a table changes, the context changes.
 // ═════════════════════════════════════════════
 export const SCHEMA_CONTEXT_FOR_AGENT = `
-Available tables for querying (READ-ONLY). The database contains public data about Angolan municipalities (Luanda province) — coverage, programs, indicators.
+Available tables for querying (READ-ONLY). The database contains public data about Florianopolis (Brazil) — telecom coverage, mobility patterns, and user flows.
+
+=== COVERAGE & INFRASTRUCTURE ===
 
 regions(id, zone_id, name, municipality, state, country, lat, lng, estimated_population, area_km2)
-  - state: province name (e.g. 'Luanda')
-  - municipality: city/municipality name
-  - country: 'AO' for Angola
+  - name: cluster/neighborhood name (e.g. 'SC401_CORREDOR')
+  - municipality: 'Florianopolis'
+  - state: 'SC'
+  - country: 'BR'
 
 base_stations(id, station_id, region_id, technology[2G|3G|4G|5G], carrier, lat, lng, power_dbm, is_active)
+  - station_id: ECGI (antenna identifier)
 
 cdrview_records(id, region_id, station_id, period, hour_of_day[0-23], day_of_week[0-6], people_count, network_technology, signal_strength[0.0-1.0])
 
@@ -574,37 +674,63 @@ region_coverage(id, region_id, period, network_coverage_score[0.0-1.0], max_conc
   - network_coverage_score: 0.0 (no coverage) to 1.0 (excellent)
   - Lower score = worse coverage. Sort ASC to find worst.
 
+=== MOBILITY & FLOWS ===
+
+mobility_flows(ecgi_origin, lat_origin, lng_origin, cluster_origin, municipality_origin, ecgi_destination, lat_destination, lng_destination, cluster_destination, municipality_destination, n_users, n_transitions, dist_km, period_predominant, pct_of_cluster_origin)
+  - Individual antenna-to-antenna user movements
+  - n_users: number of users making this transition
+  - n_transitions: total transition count
+  - period_predominant: 'MANHA'|'TARDE'|'NOITE'|'MADRUGADA'
+
+mobility_od(cluster_origin, municipality_origin, lat_origin, lng_origin, cluster_destination, municipality_destination, lat_destination, lng_destination, mesmo_cluster[bool], n_users, n_viagens, dist_media_km, period_predominant)
+  - Origin-Destination matrix aggregated by cluster
+  - mesmo_cluster: true if origin == destination
+  - n_viagens: total trips between clusters
+
+travel_times(cluster_origin, cluster_destination, mesmo_cluster[bool], n_observacoes, dist_media_km, dist_p25_km, dist_p75_km, period_predominant)
+  - Distance statistics between clusters
+  - n_observacoes: number of observations
+
+mobility_routes(cluster_origin, municipality_origin, lat_origin, lng_origin, cluster_destination, municipality_destination, lat_destination, lng_destination, mesmo_cluster[bool], n_users, n_viagens, dist_media_km, period_predominant)
+  - Most common origin-destination routes
+
+=== SOCIAL INDICATORS ===
+
 indicators(id, slug, name, category[training|employability|structured_experiences|mentorships|mental_health], unit, direction[higher_is_better|lower_is_better])
-  - category 'training' = programas/formacao
-  - category 'employability' = emprego
-  - category 'mental_health' = saude mental
 
 indicator_data(id, region_id, indicator_id, source_id, period, value, normalized_value[0.0-1.0], quality[official|estimated|modelled])
   - normalized_value < 0.3 = baixo/critico
 
 programs(id, region_id, name, category, organization, municipality, state, is_active, starts_at, ends_at)
-  - category 'training' = programas de formacao
-  - category 'employability' = programas de emprego
-  - To find regions MISSING programs: LEFT JOIN programs and filter WHERE programs.id IS NULL
 
 data_sources(id, slug, name, url, type, country)
 
-Common JOINs:
+=== COMMON JOINs ===
 - regions JOIN region_coverage ON region_coverage.region_id = regions.id
+- regions JOIN cdrview_records ON cdrview_records.region_id = regions.id
 - regions JOIN indicator_data ON indicator_data.region_id = regions.id
 - indicator_data JOIN indicators ON indicators.id = indicator_data.indicator_id
 - regions JOIN programs ON programs.region_id = regions.id
+- mobility_flows: JOIN by cluster_origin/cluster_destination to regions.name
+- mobility_od: cluster_origin/cluster_destination match regions.name
 
-Example queries for common questions:
-- "regioes com pior cobertura de rede" → SELECT r.name, rc.network_coverage_score FROM regions r JOIN region_coverage rc ON rc.region_id = r.id WHERE r.state = 'Luanda' ORDER BY rc.network_coverage_score ASC LIMIT 10
-- "regioes sem programas de formacao" → SELECT r.name FROM regions r LEFT JOIN programs p ON p.region_id = r.id AND p.category = 'training' WHERE p.id IS NULL
-- "regioes com baixa cobertura de formacao tech" → SELECT r.name, id.normalized_value FROM regions r JOIN indicator_data id ON id.region_id = r.id JOIN indicators i ON i.id = id.indicator_id WHERE i.category = 'training' ORDER BY id.normalized_value ASC
+=== EXAMPLE QUERIES ===
+- "quais clusters tem mais movimento?" → SELECT cluster_origin, SUM(n_users) as total_users FROM mobility_od GROUP BY cluster_origin ORDER BY total_users DESC LIMIT 10
+- "quais as rotas mais movimentadas?" → SELECT cluster_origin, cluster_destination, n_viagens, dist_media_km FROM mobility_od ORDER BY n_viagens DESC LIMIT 10
+- "onde ha mais concentracao de usuarios?" → SELECT cluster_origin, SUM(n_users) as total FROM mobility_od WHERE mesmo_cluster = true GROUP BY cluster_origin ORDER BY total DESC
+- "quais clusters ficam mais isolados?" → SELECT cluster_origin, MIN(dist_media_km) as min_dist FROM mobility_od WHERE mesmo_cluster = false GROUP BY cluster_origin ORDER BY min_dist DESC
+- "fluxo entre dois clusters especificos" → SELECT * FROM mobility_od WHERE cluster_origin = 'X' AND cluster_destination = 'Y'
+- "tempos de deslocamento entre clusters" → SELECT * FROM travel_times ORDER BY dist_media_km DESC LIMIT 20
+- "regioes com pior cobertura" → SELECT r.name, rc.network_coverage_score FROM regions r JOIN region_coverage rc ON rc.region_id = r.id ORDER BY rc.network_coverage_score ASC LIMIT 10
+- "antenas com mais usuarios" → SELECT cluster_origin, SUM(n_users) as users FROM mobility_flows GROUP BY cluster_origin ORDER BY users DESC
 
-Common filters:
-- period = '2024' (year) or '2024-Q1' (quarter)
-- no_4g_or_5g_coverage = true (critical zones)
-- normalized_value < 0.3 (low/critical indicator)
+=== COMMON FILTERS ===
+- period_predominant = 'MANHA'|'TARDE'|'NOITE'|'MADRUGADA'
+- municipality_origin / municipality_destination = 'Florianopolis'
+- mesmo_cluster = true (movements within same cluster)
+- mesmo_cluster = false (movements between different clusters)
 - hour_of_day BETWEEN 8 AND 18 (daytime hours)
+- no_4g_or_5g_coverage = true (critical zones)
 ` as const
 
 
@@ -645,3 +771,11 @@ export type AlertLog           = typeof alertLogs.$inferSelect
 export type NewAlertLog        = typeof alertLogs.$inferInsert
 export type QueryLog           = typeof queryLogs.$inferSelect
 export type NewQueryLog        = typeof queryLogs.$inferInsert
+export type MobilityFlow       = typeof mobilityFlows.$inferSelect
+export type NewMobilityFlow    = typeof mobilityFlows.$inferInsert
+export type MobilityOd         = typeof mobilityOd.$inferSelect
+export type NewMobilityOd      = typeof mobilityOd.$inferInsert
+export type TravelTime         = typeof travelTimes.$inferSelect
+export type NewTravelTime      = typeof travelTimes.$inferInsert
+export type MobilityRoute      = typeof mobilityRoutes.$inferSelect
+export type NewMobilityRoute   = typeof mobilityRoutes.$inferInsert

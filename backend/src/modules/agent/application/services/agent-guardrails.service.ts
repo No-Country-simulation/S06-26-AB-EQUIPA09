@@ -27,6 +27,7 @@ export interface GateResult {
 const ALLOWED_TABLES = [
   'regions', 'base_stations', 'cdrview_records', 'region_coverage',
   'indicators', 'indicator_data', 'programs', 'data_sources',
+  'mobility_flows', 'mobility_od', 'travel_times', 'mobility_routes',
 ]
 
 export const createAgentGuardrails = () => {

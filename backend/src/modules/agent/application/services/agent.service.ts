@@ -56,8 +56,10 @@ const classifyIntent = async (query: string): Promise<{ intent: IntentType; resp
         content: `Classify the user message into exactly one category. Respond with ONLY a JSON object, no extra text.
 
 Categories:
-- "data_query": The user is asking for specific data, numbers, statistics, lists, counts, comparisons, or any information that exists in a database. Examples: "quantas schools existem?", "qual a população de Luanda?", "liste as regiões", "mostre os dados de saúde"
-- "general_chat": The user is greeting, thanking, saying goodbye, asking what you can do, making small talk, or asking something that does NOT require querying a database. Examples: "Olá", "obrigado", "tudo bem?", "quem és tu?", "ajuda", "como funciona?"
+- "data_query": ANY question that could be answered with data from a database. This includes questions about numbers, lists, statistics, counts, comparisons, locations, distances, movements, coverage, programs, indicators, or ANY factual information. When in doubt, classify as data_query. Examples: "quantas pessoas existem?", "qual a cobertura?", "liste os clusters", "mostre os dados", "como é o fluxo?", "onde há mais movimento?", "qual a distância média?"
+- "general_chat": ONLY for greetings, thank you, goodbye, small talk, or asking about the bot itself. Examples: "Olá", "obrigado", "tudo bem?", "quem és tu?", "ajuda", "como funciona?", "adeus"
+
+CRITICAL: If the message asks about ANYTHING that could be stored in a database (movements, distances, numbers, locations, coverage, people, clusters, routes), classify as data_query.
 
 User message: "${query}"
 
