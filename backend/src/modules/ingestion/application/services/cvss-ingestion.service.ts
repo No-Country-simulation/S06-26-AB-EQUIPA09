@@ -1,4 +1,4 @@
-import { createReadStream, existsSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 import { sql as dbSql } from '@/db'
@@ -698,7 +698,7 @@ export const createCvssIngestionService = (
       const pickDirFile = (names: readonly string[]): CvssUploadedFile | undefined => {
         const filePath = pickPath(directory, names)
         if (!filePath) return undefined
-        const content = require('node:fs').readFileSync(filePath, 'utf-8')
+        const content = readFileSync(filePath, 'utf-8')
         return { name: path.basename(filePath), content }
       }
 

@@ -259,13 +259,6 @@ async function main() {
   console.log('\nDone!')
 }
 
-const COLS: Record<string, number> = {
-  mobility_flows: 15,
-  mobility_od: 13,
-  travel_times: 8,
-  mobility_routes: 13,
-}
-
 const esc = (v: any): string => {
   if (v === undefined || v === null) return 'NULL'
   if (typeof v === 'boolean') return v ? 'true' : 'false'
