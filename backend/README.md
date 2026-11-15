@@ -24,7 +24,7 @@ Cada escolha de tecnologia resolve um problema concreto que tínhamos. Não é l
 | Base de dados | PostgreSQL 16 (Docker) | Relacional, com suporte maduro a transações e extensões (`uuid-ossp`, `pg_stat_statements`) que usamos para debugging de queries lentas. |
 | Cache / Fila | Valkey (Docker) | O BullMQ precisa de um Redis-compatible para persistência de jobs. Usamos Valkey em vez de Redis por causa da licença SSPL do Redis, que tem restrições para uso comercial. |
 | Queue | BullMQ v5 | Precisávamos de retry automático, rate limiting e persistência de jobs para eventos assíncronos (ver secção 4.4). |
-| LLM | Groq API (`llama-3.3-70b-versatile`) | O agente de queries precisa de baixa latência para ser utilizável em tempo real. A API é compatível com o SDK da OpenAI, o que facilitou a integração. |
+| LLM | Groq (`llama-3.3-70b-versatile`) ou Cohere (`command-a-03-2025`), via API compatível com OpenAI | O agente de queries precisa de baixa latência para ser utilizável em tempo real. A API é compatível com o SDK da OpenAI, o que facilitou a integração. |
 | Validação | Zod v3 | Uma única fonte de verdade para o schema — tipo TypeScript inferido (`z.infer`) e validação em runtime vêm do mesmo lugar, sem duplicar DTOs. |
 | Logs | Pino v8 | Logs em JSON estruturado por omissão, necessários para integrar com o nosso stack de observabilidade. |
 | Auth | JWT + Argon2 (`@node-rs/argon2`) | Argon2id foi o vencedor do Password Hashing Competition e é a recomendação atual da OWASP para hashing de passwords. JWT stateless permite escalar horizontalmente sem partilhar sessão entre instâncias. |
@@ -102,14 +102,20 @@ Servidor em `http://localhost:3080`, documentação Swagger em `http://localhost
 | `bun run db:migrate` | Aplica migrações |
 | `bun run db:push` | Push direto do schema (dev only) |
 | `bun run db:seed` | Seed da BD |
-| `bun test` | Testes (Vitest) |
+| `bun run test:run` | Testes (Vitest, uma execução) |
+| `bun run ingest:cvss` | Ingestão dos CSVs CVSS pelo terminal |
+| `bun run data:load-public [--offline|--dry-run]` | Carrega indicadores e programas reais (IBGE/SIDRA e DATASUS/CNES); ver `README.md` |
+| `bun run db:cleanup-periods [--apply]` | Remove linhas de `region_coverage` com período inválido (ex.: `"undefined"`) duplicadas |
 
 ### Testes
 
 ```bash
-bash tests/api-test.sh          # 26 endpoints
+bun run test:run                # Vitest: guardrails SQL, auth/rate-limit dos controllers, executor read-only, ingestão
+bash tests/api-test.sh          # 26 endpoints (precisa do backend a correr)
 bash tests/real-data-test.sh    # com CSVs reais (antenas_flp.csv, trajetos_comuns.csv)
 ```
+
+`vitest.setup.ts` define valores por omissão para as variáveis de ambiente (JWT, CORS, …) sem sobrescrever o que já existir. Os testes de `agent-sql-executor` precisam do Postgres local (`docker compose -f infra/docker-compose.yml up -d`) e são ignorados se ele não estiver acessível.
 
 ---
 
@@ -296,7 +302,7 @@ O backpressure do `pipeTo` regula automaticamente a velocidade de leitura do fic
 
 ### 4.6 Circuit Breaker no agente LLM
 
-**Problema:** se a API da Groq estiver em baixo (ou a devolver respostas inválidas), continuar a tentar chamá-la em cada request desperdiça chamadas pagas e aumenta a latência para o utilizador.
+**Problema:** se a API do LLM (Groq/Cohere) estiver em baixo (ou a devolver respostas inválidas), continuar a tentar chamá-la em cada request desperdiça chamadas pagas e aumenta a latência para o utilizador.
 
 **Solução:** `agent-circuit-breaker.service.ts` implementa três estados:
 
@@ -309,17 +315,27 @@ HALF-OPEN --falha--> OPEN (reinicia cooldown)
 
 Uma particularidade deste circuit breaker é que conta como "falha" não só erros HTTP, mas também SQL inválido gerado pelo LLM — a falha é definida pela qualidade do resultado, não apenas pela disponibilidade do serviço.
 
-### 4.7 Guardrails do agente (3 camadas)
+### 4.7 Guardrails do agente (defesa em profundidade)
 
-**Problema:** o agente traduz linguagem natural em queries SQL. Sem validação, um input malicioso ou mal formado pode gerar SQL destrutivo (DDL/DML) ou consumir recursos desnecessariamente.
+**Problema:** o agente traduz linguagem natural em SQL e executa-o na base de dados. Sem controlo, um input malicioso (ou uma alucinação do modelo) pode ler tabelas sensíveis (`users`, `staff_users`, `sessions`, `query_logs`), chamar funções perigosas (`pg_sleep`, `pg_read_file`, `set_config`) ou consumir recursos.
 
-**Solução:** `agent-guardrails.service.ts` valida em três gates sequenciais, cada um podendo travar o pedido antes de chegar ao seguinte:
+**Solução — camadas independentes** (cada uma trava o pedido mesmo que as outras falhem):
 
-1. Validação de input — query não vazia, dentro do tamanho máximo.
-2. Schema Zod — payload no formato esperado.
-3. Verificação SQL — regex para detetar comandos DDL/DML e limite de comprimento da query gerada.
+0. **Autenticação** — `POST /agent/query` exige sessão de utilizador (cookie `auth_token`); pedidos anónimos recebem `401`.
+1. **Gate 1 — input** — pergunta não vazia, ≤ 2000 caracteres, só filtros `region | indicator | period`.
+2. **Gate 2 — schema Zod** — a resposta do LLM tem de ser `{ sql, explanation }`.
+3. **Gate 3 — análise estática do SQL** (`sql-safety.ts`):
+   - uma única instrução, a começar por `SELECT` ou `WITH`; sem comentários (`--`, `/* */`), `\`, `$$`, `E'..'`;
+   - palavras-chave de escrita/DDL/sessão proibidas (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `COPY`, `INTO`, `SET`, `FOR UPDATE`, …);
+   - identificadores de sistema proibidos (`pg_*`, `information_schema`, `lo_*`, `dblink`, `set_config`, `current_setting`, `current_user`, `version()`);
+   - **allowlist de tabelas** em `FROM`/`JOIN` (`regions`, `base_stations`, `cdrview_records`, `region_coverage`, `indicators`, `indicator_data`, `programs`, `data_sources`) + blocklist de tabelas sensíveis em qualquer posição; `FROM a, b` é recusado (usar `JOIN`);
+   - as razões de recusa voltam ao LLM no prompt de reflexão (até 2 retries).
+4. **Gate neuro-simbólico** — se o utilizador filtrou por região/período, o SQL gerado tem de conter esse valor como literal de texto (um comentário ou nome de coluna não conta).
+5. **Execução controlada** (`agent-sql-executor.ts`) — transação `READ ONLY`, `SET LOCAL statement_timeout = 5000`, resultado truncado a 200 linhas, e recusa de resultados com várias instruções.
 
-Se qualquer gate falhar, a API da Groq nem chega a ser chamada — isto poupa custo e reduz superfície de ataque.
+> Limitação conhecida: o agente usa a mesma ligação/role da aplicação. Para endurecer ainda mais, crie uma role Postgres só com `SELECT` nas tabelas permitidas e use-a no executor.
+
+Se qualquer camada falhar, o erro é devolvido (ou usado na reflexão) e nada é executado.
 
 ### 4.8 `jti` nos JWT (anti-replay / anti-colisão)
 
@@ -333,6 +349,14 @@ sign({ ...payload, jti }, secret, { expiresIn: ttl })
 ```
 
 **Alternativa descartada:** remover a constraint `UNIQUE`. Foi rejeitada porque a constraint é o que garante que não existem tokens duplicados por bug ou race condition — preferimos resolver a causa raiz (determinismo do JWT) a enfraquecer a integridade do schema.
+
+### 4.9 Escopo dos hooks do Elysia (`as: 'scoped'`)
+
+**Problema real que já tivemos:** `authMiddleware`, `staffAuthMiddleware` e `rateLimitMiddleware` registavam o `onBeforeHandle` com `as: 'local'`. Num plugin Elysia, `local` só vale para as rotas **do próprio plugin**, não para as do controller que o `.use()`. Resultado: `GET /staff/members`, `/staff/query-logs`, etc. respondiam `200` sem login, e o rate limit nunca devolvia `429`. Só as rotas que chamavam `requireUser`/`getStaffAuth` manualmente estavam protegidas.
+
+**Regra:** hooks de guarda usam `{ as: 'scoped' }` (aplicam-se ao plugin e ao consumidor que o `.use()`). O `derive` continua `global`. As rotas públicas (ex.: `POST /staff/login`) são declaradas **antes** do `.use(staffAuthMiddleware())`.
+
+**Testes de regressão:** `src/middlewares/__tests__/auth-enforcement.test.ts` monta os controllers reais sem cookie e exige `401`, e verifica o `429` do rate limit.
 
 ---
 
@@ -462,7 +486,7 @@ GET    /alerts/logs
 GET    /notifications
 PATCH  /notifications/:id/read
 PATCH  /notifications/read-all
-POST   /agent/query
+POST   /agent/query            (requer login)
 ```
 
 **Porquê cookie para staff e Bearer para utilizador público:** staff usa cookie `httpOnly` + `sameSite: lax`, para que num cenário de XSS o atacante não consiga ler o token via JavaScript. O utilizador público usa Bearer porque o frontend precisa de ler o token para gerir expiração da sessão na UI — uma troca deliberada entre conveniência de frontend e superfície de risco, aceitável porque o utilizador público tem permissões mais limitadas que o staff.
@@ -479,18 +503,21 @@ Ver `.env` na raiz do projeto.
 | `DB_PORT` | Sim | Porta (5432) |
 | `DB_USER` | Sim | User da BD |
 | `DB_PASSWORD` | Sim | Password |
-| `DB_DATABASE` | Sim | Nome da BD (`chronusv2`) |
+| `DB_DATABASE` | Sim | Nome da BD  |
 | `DATABASE_URL` | Não | Full connection string (ex.: Neon). If present, it overrides DB_* settings |
 | `JWT_SECRET` | Sim | Mínimo 32 caracteres |
 | `REDIS_HOST` | Sim | Host do Valkey/Redis |
 | `REDIS_PORT` | Sim | Porta (6379) |
-| `GROQ_API_KEY` | Sim | Chave da API Groq |
+| `LLM_PROVIDER` | Não | `groq` ou `cohere`. Sem ele: Groq se houver `GROQ_API_KEY`, senão Cohere |
+| `GROQ_API_KEY` | Uma das duas | Chave da API Groq |
 | `GROQ_MODEL` | Não | Default: `llama-3.3-70b-versatile` |
+| `COHERE_API_KEY` | Uma das duas | Chave da API Cohere (endpoint compatível com OpenAI) |
+| `COHERE_MODEL` | Não | Default: `command-a-03-2025` |
 | `STAFF_SEED_EMAIL` | Não | Staff criado no bootstrap |
 | `STAFF_SEED_PASSWORD` | Não | Password do staff seed |
 | `CORS_ORIGINS` | Sim | Origens permitidas (separadas por vírgula) |
 
-**Porquê o modelo LLM vem do `.env` e não está hardcoded:** o código já teve `DEFAULT_MODEL = 'mixtral-8x7b-32768'` fixo no código-fonte. Esse modelo foi descontinuado pela Groq sem aviso. Ler de `process.env.GROQ_MODEL` permite trocar de modelo editando uma variável, sem recompilar nem fazer deploy de código novo.
+**Porquê o modelo LLM vem do `.env` e não está hardcoded:** o código já teve `DEFAULT_MODEL = 'mixtral-8x7b-32768'` fixo no código-fonte. Esse modelo foi descontinuado pela Groq sem aviso. Ler de `process.env.GROQ_MODEL` / `COHERE_MODEL` permite trocar de modelo editando uma variável, sem recompilar nem fazer deploy de código novo.
 
 ### Usando uma base de dados Neon (hosted)
 

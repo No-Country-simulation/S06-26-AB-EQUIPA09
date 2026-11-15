@@ -45,7 +45,7 @@ Consulta inteligente.
 {
   "consulta": "Onde faltam programas de formação?",
   "filtros": {
-    "regiao": "Luanda",
+    "regiao": "Florianópolis",
     "indicador": "TRAINING"
   },
   "idioma": "pt"
@@ -78,7 +78,7 @@ Consulta inteligente.
     "regioes": [
       {
         "id": "1",
-        "nome": "Luanda",
+        "nome": "Florianópolis",
         "lat": -8.83,
         "lng": 13.24,
         "concentracao": 82,
@@ -101,7 +101,7 @@ Consulta inteligente.
   "data": [
     {
       "id": "1",
-      "nome": "Luanda"
+      "nome": "Florianópolis"
     }
   ]
 }
@@ -134,7 +134,7 @@ Consulta inteligente.
 
 ```json
 {
-  "regiao": "Luanda",
+  "regiao": "Florianópolis",
   "indicadores": [
     "EMPLOYMENT",
     "TRAINING"

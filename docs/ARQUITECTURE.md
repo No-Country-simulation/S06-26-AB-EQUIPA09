@@ -1,5 +1,7 @@
 # ARCHITECTURE
 
+> **Nota:** este documento nasceu como plano inicial. Os diagramas e decisões abaixo foram atualizados para a stack real (Bun + Elysia + Drizzle + PostgreSQL + Valkey); detalhes de implementação estão em `backend/README.md` e `README_FRONT.md`. Os dados reais são da região metropolitana de Florianópolis (SC, Brasil).
+
 # App BiT — Arquitetura da Plataforma
 
 ## Objetivo
@@ -54,28 +56,28 @@ para apoiar gestores públicos na tomada de decisão baseada em evidências.
 
 ```text
 ┌──────────────────────┐
-│ apps/web             │
-│ React + Vite         │
+│ web/                 │
+│ React 19 + Vite      │
 └─────────┬────────────┘
-          │ HTTPS
+          │ HTTPS (cookies httpOnly)
           ▼
 
-┌──────────────────────┐
-│ apps/api             │
-│ Fastify              │
-└───┬─────────┬────────┘
+┌──────────────────────┐        ┌──────────────────────┐
+│ backend/             │ ─────▶ │ LLM (Groq ou Cohere) │
+│ Bun + Elysia         │  SQL   │ API compatível OpenAI│
+└───┬─────────┬────────┘        └──────────────────────┘
     │         │
     ▼         ▼
 
- PostgreSQL   Redis
-  + PostGIS
+ PostgreSQL   Valkey
+  (Drizzle)   (BullMQ)
 
     ▲
-    │
+    │ ingestão por streaming
 
 ┌──────────────────────┐
-│ data/pipelines       │
-│ Python ETL           │
+│ CSVs CVSS / CDRView  │
+│ (upload ou CLI)      │
 └──────────────────────┘
 ```
 
@@ -107,7 +109,7 @@ Transformação
       ↓
 Validação
       ↓
-PostgreSQL/PostGIS
+PostgreSQL
       ↓
 API
       ↓
@@ -191,27 +193,21 @@ Motivação:
 * Desenvolvimento paralelo
 * Compartilhamento de tipos
 
-## PostgreSQL + PostGIS
+## PostgreSQL + Drizzle
 
 Motivação:
 
-* Dados geográficos
-* Consultas espaciais
+* Relacional, transações e índices compostos
+* SQL explícito (upserts idempotentes na ingestão)
+* Sem PostGIS por agora: as coordenadas (`lat`/`lng`) bastam para o mapa
 
-## Fastify
-
-Motivação:
-
-* Alta performance
-* Simplicidade
-
-## Turborepo
+## Bun + Elysia
 
 Motivação:
 
-* Cache
-* Build incremental
-* Escalabilidade
+* TypeScript sem passo de build separado
+* Streams Web nativos para ler CSVs grandes
+* Tipagem do handler ao schema de validação
 
 ---
 
