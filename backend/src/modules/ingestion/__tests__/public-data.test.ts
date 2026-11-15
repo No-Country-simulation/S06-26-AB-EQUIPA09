@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
-  MUNICIPALITIES, capsCoverage, capsToProgram, distanceKm, employmentRate, nearestRegion, parseSidraValue,
+  MUNICIPALITIES,
+  capsCoverage,
+  capsToProgram,
+  distanceKm,
+  employmentRate,
+  nearestRegion,
+  parseSidraValue,
 } from '../application/services/public-data'
 
 describe('employmentRate', () => {
@@ -12,7 +18,12 @@ describe('employmentRate', () => {
   it('limita a 100% (polos de emprego)', () => {
     expect(employmentRate(200, 100)).toBe(100)
   })
-  it.each([[1, 0], [1, -5], [NaN, 10], [10, NaN]])('recusa valores inválidos: %j', (a, b) => {
+  it.each([
+    [1, 0],
+    [1, -5],
+    [NaN, 10],
+    [10, NaN],
+  ])('recusa valores inválidos: %j', (a, b) => {
     expect(() => employmentRate(a, b)).toThrow()
   })
 })
@@ -28,7 +39,11 @@ describe('capsCoverage', () => {
     expect(capsCoverage(1, 285_714).score).toBe(50)
     expect(capsCoverage(0, 100_000)).toEqual({ per100k: 0, score: 0 })
   })
-  it.each([[-1, 100], [1, 0], [NaN, 100]])('recusa valores inválidos: %j', (c, p) => {
+  it.each([
+    [-1, 100],
+    [1, 0],
+    [NaN, 100],
+  ])('recusa valores inválidos: %j', (c, p) => {
     expect(() => capsCoverage(c, p)).toThrow()
   })
 })
@@ -60,7 +75,7 @@ describe('geografia', () => {
 })
 
 describe('capsToProgram', () => {
-  const flp = MUNICIPALITIES.find(m => m.name === 'Florianopolis')!
+  const flp = MUNICIPALITIES.find((m) => m.name === 'Florianopolis')!
   const caps = {
     codigo_cnes: 2663082,
     nome_fantasia: 'CAPS PONTA DO CORAL',
@@ -80,11 +95,15 @@ describe('capsToProgram', () => {
     expect(p.description).toContain('Agronomica')
     expect(p.organization).toBe('Pref Mun Florianopolis Sms Fms (Municipal)')
     expect(p.metadata).toMatchObject({ source: 'DATASUS/CNES', cnes: 2663082, lat: -27.5727 })
-    expect(p.url).toBe('https://cnes.datasus.gov.br/pages/estabelecimentos/ficha/identificacao/4205402663082')
+    expect(p.url).toBe(
+      'https://cnes.datasus.gov.br/pages/estabelecimentos/ficha/identificacao/4205402663082'
+    )
   })
   it('usa a razão social sem nome fantasia, o código CNES como último recurso, e trunca nomes longos', () => {
     expect(capsToProgram({ codigo_cnes: 1, nome_razao_social: 'ORG X' }, flp).name).toBe('ORG X')
-    expect(capsToProgram({ codigo_cnes: 1, nome_fantasia: 'A'.repeat(300) }, flp).name).toHaveLength(200)
+    expect(
+      capsToProgram({ codigo_cnes: 1, nome_fantasia: 'A'.repeat(300) }, flp).name
+    ).toHaveLength(200)
     expect(capsToProgram({ codigo_cnes: 7 }, flp).name).toBe('CNES 7')
   })
 })

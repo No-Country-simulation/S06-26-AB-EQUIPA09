@@ -19,9 +19,9 @@ export interface MunicipalityRef {
 
 export const MUNICIPALITIES: readonly MunicipalityRef[] = [
   { name: 'Florianopolis', label: 'Florianópolis', ibge: '4205407', cnes: '420540' },
-  { name: 'Sao Jose',      label: 'São José',      ibge: '4216602', cnes: '421660' },
-  { name: 'Palhoca',       label: 'Palhoça',       ibge: '4211900', cnes: '421190' },
-  { name: 'Biguacu',       label: 'Biguaçu',       ibge: '4202305', cnes: '420230' },
+  { name: 'Sao Jose', label: 'São José', ibge: '4216602', cnes: '421660' },
+  { name: 'Palhoca', label: 'Palhoça', ibge: '4211900', cnes: '421190' },
+  { name: 'Biguacu', label: 'Biguaçu', ibge: '4202305', cnes: '420230' },
 ]
 
 /** Parâmetro do Ministério da Saúde: cobertura de CAPS ≥ 0,70 por 100 mil hab. = faixa "muito boa". */
@@ -39,8 +39,16 @@ export const employmentRate = (salariedWorkers: number, population: number): num
 }
 
 /** Cobertura de CAPS: unidades por 100 mil hab. e pontuação 0–100 face à meta de 0,70. */
-export const capsCoverage = (capsCount: number, population: number): { per100k: number; score: number } => {
-  if (!Number.isFinite(capsCount) || capsCount < 0 || !Number.isFinite(population) || population <= 0) {
+export const capsCoverage = (
+  capsCount: number,
+  population: number
+): { per100k: number; score: number } => {
+  if (
+    !Number.isFinite(capsCount) ||
+    capsCount < 0 ||
+    !Number.isFinite(population) ||
+    population <= 0
+  ) {
     throw new Error('capsCoverage: valores inválidos')
   }
   const per100k = (capsCount / population) * 100_000
@@ -53,25 +61,35 @@ export const capsCoverage = (capsCount: number, population: number): { per100k: 
 const toRad = (d: number) => (d * Math.PI) / 180
 
 /** Distância em km entre dois pontos (haversine). */
-export const distanceKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }): number => {
+export const distanceKm = (
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number => {
   const dLat = toRad(b.lat - a.lat)
   const dLng = toRad(b.lng - a.lng)
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
   return 2 * 6371 * Math.asin(Math.sqrt(h))
 }
 
 /** Região mais próxima de um ponto, apenas entre as do mesmo município. */
-export const nearestRegion = <R extends { id: string; municipality: string; lat: number; lng: number }>(
+export const nearestRegion = <
+  R extends { id: string; municipality: string; lat: number; lng: number },
+>(
   point: { lat: number; lng: number },
   municipality: string,
-  regions: readonly R[],
+  regions: readonly R[]
 ): R | null => {
   let best: R | null = null
   let bestDist = Infinity
   for (const r of regions) {
     if (r.municipality !== municipality) continue
     const d = distanceKm(point, r)
-    if (d < bestDist) { best = r; bestDist = d }
+    if (d < bestDist) {
+      best = r
+      bestDist = d
+    }
   }
   return best
 }
@@ -91,19 +109,26 @@ export interface CnesEstablishment {
 }
 
 const titleCase = (s: string) =>
-  s.toLowerCase().replace(/(^|\s|-)(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase())
-    .replace(/\b(Da|De|Do|Das|Dos|E)\b/g, m => m.toLowerCase())
+  s
+    .toLowerCase()
+    .replace(/(^|\s|-)(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase())
+    .replace(/\b(Da|De|Do|Das|Dos|E)\b/g, (m) => m.toLowerCase())
 
 /** Converte um CAPS do CNES numa linha da tabela `programs` (sem regionId). */
 export const capsToProgram = (e: CnesEstablishment, municipality: MunicipalityRef) => {
   const rawName = (e.nome_fantasia || e.nome_razao_social || `CNES ${e.codigo_cnes}`).trim()
   const name = rawName.length > 200 ? rawName.slice(0, 200) : rawName
-  const sphere = e.descricao_esfera_administrativa ? titleCase(e.descricao_esfera_administrativa) : null
+  const sphere = e.descricao_esfera_administrativa
+    ? titleCase(e.descricao_esfera_administrativa)
+    : null
   return {
     name,
     description: `Centro de Atenção Psicossocial (CAPS) registado no CNES/DATASUS${e.bairro_estabelecimento ? `, bairro ${titleCase(e.bairro_estabelecimento)}` : ''}.`,
     category: 'mental_health' as const,
-    organization: [e.nome_razao_social ? titleCase(e.nome_razao_social) : null, sphere ? `(${sphere})` : null].filter(Boolean).join(' ') || null,
+    organization:
+      [e.nome_razao_social ? titleCase(e.nome_razao_social) : null, sphere ? `(${sphere})` : null]
+        .filter(Boolean)
+        .join(' ') || null,
     municipality: municipality.name,
     state: 'SC',
     url: `https://cnes.datasus.gov.br/pages/estabelecimentos/ficha/identificacao/${municipality.cnes}${String(e.codigo_cnes).padStart(7, '0')}`,
