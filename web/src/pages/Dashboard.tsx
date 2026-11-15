@@ -5,7 +5,7 @@ import CoberturaTag from '../components/map/CoberturaTag'
 import CircularGauge from '../components/ui/CircularGauge'
 import CoverageRadar from '../components/dashboard/CoverageRadar'
 import PriorityRanking from '../components/dashboard/PriorityRanking'
-import { mediaIndicador } from '../lib/indicadores'
+import { mediaIndicador, temDadosIndicador } from '../lib/indicadores'
 
 const INDICADORES = [
   { slug: 'cobertura-formacao-tech', label: 'Formações Tech' },
@@ -80,7 +80,12 @@ export default function Dashboard() {
               ? INDICADORES.map(i => <div key={i.slug} className="bg-ink-900 border border-ink-border-soft rounded-2xl h-24 animate-pulse" />)
               : INDICADORES.map(ind => (
                 <div key={ind.slug} className="bg-ink-900 rounded-2xl border border-ink-border-soft p-3 flex flex-col items-center text-center gap-2">
-                  <CircularGauge value={mediaIndicador(regioes, ind.slug)} size={48} stroke={4} />
+                  <CircularGauge
+                    value={mediaIndicador(regioes, ind.slug)}
+                    semDados={!temDadosIndicador(regioes, ind.slug)}
+                    size={48}
+                    stroke={4}
+                  />
                   <p className="text-[10.5px] text-mist-400 leading-tight">{ind.label}</p>
                 </div>
               ))}

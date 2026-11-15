@@ -7,6 +7,11 @@ const EXEMPLOS_COMPLETOS = [
   { q: 'Onde falta conectividade antes de chegarem os programas de saúde mental?', tag: 'Saúde Mental' },
 ]
 
+function formatValor(valor: number, unidade?: '%' | ''): string {
+  const n = Number.isInteger(valor) ? String(valor) : valor.toFixed(1)
+  return unidade === '%' || unidade === undefined ? `${n}%` : n
+}
+
 export default function Consulta() {
   const { ultimaResposta, setConsultaAtual } = useAppStore()
 
@@ -52,7 +57,7 @@ export default function Consulta() {
                 {ultimaResposta.dados.map((d, i) => (
                   <tr key={i}>
                     <td className="py-2 text-mist-200">{d.regiao}</td>
-                    <td className="py-2 text-right font-medium text-mist-50 font-mono">{Math.round(d.valor)}%</td>
+                    <td className="py-2 text-right font-medium text-mist-50 font-mono">{formatValor(d.valor, d.unidade)}</td>
                     <td className="py-2 text-right text-mist-600 font-mono">{d.fonte}</td>
                   </tr>
                 ))}

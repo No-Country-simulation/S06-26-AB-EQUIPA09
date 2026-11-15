@@ -5,8 +5,8 @@ import 'leaflet/dist/leaflet.css'
 import type { Regiao } from '../../types'
 import { useAppStore } from '../../store'
 
-// Fallback inicial (Luanda) usado só até os dados chegarem e o FitBounds assumir.
-const FALLBACK_CENTER: [number, number] = [-8.84, 13.23]
+// Fallback inicial (Florianópolis, SC) usado só até os dados chegarem e o FitBounds assumir.
+const FALLBACK_CENTER: [number, number] = [-27.6, -48.55]
 const FALLBACK_ZOOM = 11
 
 function corPorNivel(nivel: Regiao['cobertura_nivel']) {

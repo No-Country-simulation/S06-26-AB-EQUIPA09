@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store'
 import { useLogout } from '../../hooks/useAuth'
 
@@ -13,7 +13,6 @@ export default function Layout() {
   const { user } = useAuthStore()
   const logout = useLogout()
   const navigate = useNavigate()
-  const isMock = import.meta.env.VITE_USE_MOCK === 'true'
 
   async function handleLogout() {
     await logout.mutateAsync()
