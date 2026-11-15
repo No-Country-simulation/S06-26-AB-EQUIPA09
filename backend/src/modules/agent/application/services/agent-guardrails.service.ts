@@ -6,8 +6,7 @@ import { z } from 'zod'
 
 const COMPONENT = 'AgentGuardrails'
 
-const SQL_VALID_REGEX = /^\s*SELECT\b/i
-const SQL_DANGEROUS_REGEX = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE)\b/i
+import { analyzeSql, sqlHasStringLiteral } from './sql-safety'
 
 export const llmResponseSchema = z.object({
   sql: z.string().min(1, 'SQL gerado vazio').optional(),
@@ -21,11 +20,6 @@ export interface GateResult {
   message: string
   code: string
 }
-
-const ALLOWED_TABLES = [
-  'regions', 'base_stations', 'cdrview_records', 'region_coverage',
-  'indicators', 'indicator_data', 'programs', 'data_sources',
-]
 
 export const createAgentGuardrails = () => {
 
@@ -70,36 +64,23 @@ export const createAgentGuardrails = () => {
   }
 
   const validateGate3 = (sql: string): Result<GateResult, AppError> => {
-    if (!SQL_VALID_REGEX.test(sql)) {
-      return Err(ErrorFactory.business(
-        'Apenas consultas SELECT são permitidas',
-        'NOT_SELECT', COMPONENT,
-      ))
+    const analysis = analyzeSql(sql)
+    if (!analysis.ok) {
+      const code = analysis.code ?? 'DANGEROUS_SQL'
+      return Err(ErrorFactory.business(analysis.reason ?? 'SQL não permitido', code, COMPONENT))
     }
-    if (SQL_DANGEROUS_REGEX.test(sql)) {
-      return Err(ErrorFactory.business(
-        'SQL contém operações não permitidas (INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/TRUNCATE)',
-        'DANGEROUS_SQL', COMPONENT,
-      ))
-    }
-
-    const sqlUpper = sql.toUpperCase()
-    for (const table of ALLOWED_TABLES) {
-      if (sqlUpper.includes(table.toUpperCase())) continue
-    }
-
     return Ok({ passed: true, message: 'SQL válido e seguro', code: 'GATE3_PASS' })
   }
 
   const validateNeurosymbolic = (sql: string, context?: { region?: string; indicator?: string; period?: string }): Result<GateResult, AppError> => {
-    if (context?.region && !sql.toUpperCase().includes(context.region.toUpperCase())) {
+    if (context?.region && !sqlHasStringLiteral(sql, context.region)) {
       return Err(ErrorFactory.business(
-        `O filtro de região "${context.region}" não foi aplicado na consulta gerada`,
+        `O filtro de região "${context.region}" não foi aplicado na consulta gerada (tem de aparecer como valor entre aspas, ex.: name = '${context.region}')`,
         'MISSING_REGION_FILTER', COMPONENT,
       ))
     }
     if (context?.period) {
-      const periodMatch = sql.match(/period\s*=\s*['"]([^'"]+)['"]/i)
+      const periodMatch = sql.match(/period\s*=\s*'([^']+)'/i)
       if (!periodMatch || periodMatch[1] !== context.period) {
         return Err(ErrorFactory.business(
           `O filtro de período "${context.period}" não foi aplicado correctamente na consulta`,

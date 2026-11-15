@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    setupFiles: ['./vitest.setup.ts'],
     // Allow the runner to succeed even if some matched files contain no tests
     passWithNoTests: true,
     include: ['src/**/*.{test,spec}.{js,ts}'],

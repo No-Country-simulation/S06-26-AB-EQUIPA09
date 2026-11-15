@@ -112,7 +112,7 @@ export const authMiddleware = () =>
       }
     })
 
-    .onBeforeHandle({ as: 'local' }, ({ auth, set }) => {
+    .onBeforeHandle({ as: 'scoped' }, ({ auth, set }) => {
       if (!auth.success) {
         set.status = auth.error.statusCode
         return auth.error

@@ -28,7 +28,8 @@ module.exports = {
     ".eslintrc.cjs",  
     "dist/",
     "node_modules/",
-    "*.config.*"
+    "*.config.*",
+    "vitest.setup.ts"
   ],
 
   rules: {
