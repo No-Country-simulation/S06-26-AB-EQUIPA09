@@ -5,7 +5,8 @@ import { useAuthStore } from '../store'
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3080'
 
 // ─── AXIOS INSTANCE ──────────────────────────────────────────────────────────
-export const api = axios.create({ baseURL: API })
+// withCredentials: o backend autentica pelo cookie httpOnly `auth_token` (o header Bearer é ignorado).
+export const api = axios.create({ baseURL: API, withCredentials: true })
 
 // Injector de token em todos os pedidos autenticados
 api.interceptors.request.use(config => {
@@ -24,7 +25,7 @@ api.interceptors.response.use(
       try {
         const { refreshToken } = useAuthStore.getState()
         if (!refreshToken) throw new Error('No refresh token')
-        const { data } = await axios.post(`${API}/auth/refresh`, { refreshToken })
+        const { data } = await axios.post(`${API}/auth/refresh`, { refreshToken }, { withCredentials: true })
         useAuthStore.getState().setAuth(
           { accessToken: data.accessToken, refreshToken: data.refreshToken },
           useAuthStore.getState().user
@@ -64,17 +65,13 @@ export function useLogin() {
       return res.data
     },
     onSuccess: data => {
-console.log("LOGIN RESPONSE", data)
-
   setAuth(
     {
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
     },
     data.user
-  )
-
-  console.log("STORE", useAuthStore.getState())    },
+  )    },
   })
 }
 export function useLogout() {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStaffLogin } from '../../hooks/useStaffApi'
+import { getApiErrorMessage } from '../../lib/apiError'
 
 export default function StaffLogin() {
   const navigate = useNavigate()
@@ -13,12 +14,8 @@ export default function StaffLogin() {
     try {
       await login.mutateAsync(form)
       navigate('/staff/dashboard')
-    } catch (err: any) {
-      const msg = err?.response?.data?.message
-        ?? err?.response?.data?.error
-        ?? err?.response?.data?.value?.message
-        ?? 'Credenciais inválidas ou sessão indisponível.'
-      setError(msg)
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Credenciais inválidas ou sessão indisponível.'))
     }
   }
 
@@ -64,7 +61,7 @@ export default function StaffLogin() {
                   type="email"
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="admin@sqlens.ao"
+                  placeholder="admin@sqlens.com.br"
                   className="w-full px-3.5 py-2.5 rounded-lg border border-ink-border bg-ink-850 text-[14px] text-mist-50 placeholder:text-mist-600 outline-none focus:border-status-bad transition-colors"
                 />
               </div>

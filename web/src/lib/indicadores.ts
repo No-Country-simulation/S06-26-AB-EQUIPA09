@@ -7,6 +7,14 @@ export function mediaIndicador(regioes: Regiao[], slug: string): number {
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
 }
 
+/**
+ * Há algum valor real para o indicador? Regiões sem dados recebem 0 como valor-base, por isso
+ * "tudo zero" significa "sem fonte/sem dados", não "péssimo" — a UI mostra "—" em vez de 0.
+ */
+export function temDadosIndicador(regioes: Regiao[], slug: string): boolean {
+  return regioes.some(r => r.indicadores.some(i => i.slug === slug && i.valor > 0))
+}
+
 /** A região com a cobertura de rede mais baixa — usada para destacar o alerta prioritário. */
 export function regiaoMaisCritica(regioes: Regiao[]): Regiao | null {
   if (!regioes.length) return null
@@ -23,7 +31,7 @@ export interface PrioridadeRegiao {
  * Índice de prioridade de investimento (0–100).
  *
  * Combina três sinais normalizados para responder à pergunta que mais importa
- * num contexto B2G: "onde é que cada Kwanza investido gera mais impacto?"
+ * num contexto B2G: "onde é que cada real investido gera mais impacto?"
  *
  *  - Concentração populacional (peso 0.40) — mais gente afetada, maior o retorno social.
  *  - Défice de cobertura de rede (peso 0.35) — sem rede, nenhum programa digital chega.

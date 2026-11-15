@@ -133,11 +133,16 @@ const normalizeMunicipality = (value: string | undefined) =>
 
 const periodHour = (period: string | undefined) => {
   switch ((period ?? '').toUpperCase()) {
-    case 'MADRUGADA': return 3
-    case 'MANHA': return 9
-    case 'TARDE': return 15
-    case 'NOITE': return 21
-    default: return 12
+    case 'MADRUGADA':
+      return 3
+    case 'MANHA':
+      return 9
+    case 'TARDE':
+      return 15
+    case 'NOITE':
+      return 21
+    default:
+      return 12
   }
 }
 
@@ -168,7 +173,14 @@ type CoverageAccumulator = {
   totalRecords: number
 }
 
-const coveragePeriod = (dayDate: string) => dayDate.slice(0, 7) || '2026-03'
+/** Período de cobertura (YYYY-MM) derivado de day_date. Falha em vez de gravar lixo ("undefined", '', ...). */
+export const coveragePeriod = (dayDate: string | undefined): string => {
+  const period = (dayDate ?? '').slice(0, 7)
+  if (!/^\d{4}-\d{2}$/.test(period)) {
+    throw new Error(`day_date inválido no CSV (esperado YYYY-MM-DD): ${JSON.stringify(dayDate)}`)
+  }
+  return period
+}
 
 const addCoverageSample = (
   accumulators: Map<string, CoverageAccumulator>,
@@ -176,7 +188,7 @@ const addCoverageSample = (
   period: string,
   hourOfDay: number,
   peopleCount: number,
-  signalStrength: number,
+  signalStrength: number
 ) => {
   const key = `${regionId}:${period}`
   const current = accumulators.get(key) ?? {
@@ -214,9 +226,14 @@ export const createCvssIngestionService = (
   dataSourceRepo: IDataSourceRepository,
   regionRepo: IRegionRepository,
   cdrviewRecordRepo: ICDRViewRecordRepository,
-  regionCoverageRepo: IRegionCoverageRepository,
+  regionCoverageRepo: IRegionCoverageRepository
 ) => {
-  const ensureDataSource = async (slug: string, name: string, description: string, sourceUrl: string) => {
+  const ensureDataSource = async (
+    slug: string,
+    name: string,
+    description: string,
+    sourceUrl: string
+  ) => {
     const existing = await dataSourceRepo.findBySlug(slug)
     if (existing) return existing
 
@@ -236,23 +253,22 @@ export const createCvssIngestionService = (
     let maxPeakConcentration = 0
 
     for (const item of accumulators.values()) {
-      const avgConcentration = item.totalRecords > 0
-        ? (item.daytimeSum + item.nighttimeSum) / item.totalRecords
-        : 0
+      const avgConcentration =
+        item.totalRecords > 0 ? (item.daytimeSum + item.nighttimeSum) / item.totalRecords : 0
       maxAvgConcentration = Math.max(maxAvgConcentration, avgConcentration)
       maxPeakConcentration = Math.max(maxPeakConcentration, item.maxConcentration)
     }
 
     for (const item of accumulators.values()) {
       const baseSignal = item.signalCount > 0 ? item.signalSum / item.signalCount : 0
-      const avgConcentration = item.totalRecords > 0
-        ? (item.daytimeSum + item.nighttimeSum) / item.totalRecords
-        : 0
+      const avgConcentration =
+        item.totalRecords > 0 ? (item.daytimeSum + item.nighttimeSum) / item.totalRecords : 0
       const loadPressure = maxAvgConcentration > 0 ? avgConcentration / maxAvgConcentration : 0
-      const peakPressure = maxPeakConcentration > 0 ? item.maxConcentration / maxPeakConcentration : 0
+      const peakPressure =
+        maxPeakConcentration > 0 ? item.maxConcentration / maxPeakConcentration : 0
       const networkCoverageScore = Math.max(
         0,
-        Math.min(1, 1 - ((1 - baseSignal) * 0.35 + loadPressure * 0.45 + peakPressure * 0.20))
+        Math.min(1, 1 - ((1 - baseSignal) * 0.35 + loadPressure * 0.45 + peakPressure * 0.2))
       )
 
       await regionCoverageRepo.upsert({
@@ -262,7 +278,8 @@ export const createCvssIngestionService = (
         maxConcentration: item.maxConcentration,
         minConcentration: Number.isFinite(item.minConcentration) ? item.minConcentration : 0,
         avgDaytimeConcentration: item.daytimeCount > 0 ? item.daytimeSum / item.daytimeCount : null,
-        avgNighttimeConcentration: item.nighttimeCount > 0 ? item.nighttimeSum / item.nighttimeCount : null,
+        avgNighttimeConcentration:
+          item.nighttimeCount > 0 ? item.nighttimeSum / item.nighttimeCount : null,
         dominantTechnology: '4G',
         no4gOr5gCoverage: false,
         totalRecords: item.totalRecords,
@@ -277,7 +294,7 @@ export const createCvssIngestionService = (
       'cvss-antenas-flp',
       'CVSS - Antenas Florianopolis',
       'ERBs reais da Claro na Regiao Metropolitana de Florianopolis',
-      sourceUrl,
+      sourceUrl
     )
     let regionsUpserted = 0
     let stationsUpserted = 0
@@ -345,7 +362,7 @@ export const createCvssIngestionService = (
       'cvss-tensor-concentracao',
       'CVSS - Tensor de Concentracao',
       'Concentracao por antena, dia e periodo da base CDRView App BiT v2',
-      sourceUrl,
+      sourceUrl
     )
     const records: CDRViewRowDTO[] = []
     let rowsRead = 0
@@ -393,7 +410,7 @@ export const createCvssIngestionService = (
         coveragePeriod(row.day_date),
         period.getUTCHours(),
         peopleCount,
-        signalStrength,
+        signalStrength
       )
 
       if (records.length >= BATCH_SIZE) {
@@ -409,7 +426,7 @@ export const createCvssIngestionService = (
 
   const registerUnmappedSources = async (
     hasFile: (names: readonly string[]) => boolean,
-    sourceUrl: string,
+    sourceUrl: string
   ) => {
     const unmapped = [
       [files.flowRoads, 'cvss-tensor-fluxo-vias', 'CVSS - Tensor Fluxo Vias'],
@@ -426,7 +443,7 @@ export const createCvssIngestionService = (
         slug,
         name,
         `Fonte detectada. O schema atual ainda nao possui tabela especifica para este arquivo.`,
-        sourceUrl,
+        sourceUrl
       )
       await dataSourceRepo.updateLastIngestedAt(source.id)
       registered++
@@ -434,16 +451,19 @@ export const createCvssIngestionService = (
     return registered
   }
 
-  const normalizeName = (name: string) => name.trim().toLowerCase()
-
   const normalizeKey = (name: string) =>
-    name.trim().toLowerCase().replace(/\s*\(.*?\)\s*/g, '').replace('.csv', '').replace(/[^a-z0-9_\u00e0-\u00fc]/g, '')
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/\s*\(.*?\)\s*/g, '')
+      .replace('.csv', '')
+      .replace(/[^a-z0-9_\u00e0-\u00fc]/g, '')
 
   const pickUploaded = (uploaded: CvssUploadedFile[], names: readonly string[]) =>
-    uploaded.find(file => names.some(name => normalizeKey(file.name) === normalizeKey(name)))
+    uploaded.find((file) => names.some((name) => normalizeKey(file.name) === normalizeKey(name)))
 
   const pickPath = (directory: string, names: readonly string[]) =>
-    names.map(name => path.join(directory, name)).find(filePath => existsSync(filePath))
+    names.map((name) => path.join(directory, name)).find((filePath) => existsSync(filePath))
 
   return {
     async ingestUploadedFiles(uploaded: CvssUploadedFile[]): Promise<CvssIngestionResult> {
@@ -451,14 +471,22 @@ export const createCvssIngestionService = (
       const concentration = pickUploaded(uploaded, files.concentration)
 
       if (!antennas || !concentration) {
-        throw new Error('Envie pelo menos antenas_flp.csv e tensor_concentracao.csv para executar a ingestao CVSS.')
+        throw new Error(
+          'Envie pelo menos antenas_flp.csv e tensor_concentracao.csv para executar a ingestao CVSS.'
+        )
       }
 
       const antennaResult = await ingestAntennas(readCsvContent(antennas.content), 'upload://cvss')
-      const concentrationResult = await ingestConcentration(readCsvContent(concentration.content), 'upload://cvss')
+      const concentrationResult = await ingestConcentration(
+        readCsvContent(concentration.content),
+        'upload://cvss'
+      )
       const registeredSources = await registerUnmappedSources(
-        names => uploaded.some(file => names.some(name => normalizeKey(file.name) === normalizeKey(name))),
-        'upload://cvss',
+        (names) =>
+          uploaded.some((file) =>
+            names.some((name) => normalizeKey(file.name) === normalizeKey(name))
+          ),
+        'upload://cvss'
       )
 
       return {
@@ -467,7 +495,7 @@ export const createCvssIngestionService = (
         stationsUpserted: antennaResult.stationsUpserted + concentrationResult.stationsUpserted,
         coverageRowsUpserted: concentrationResult.coverageRowsUpserted,
         registeredSources,
-        filesProcessed: uploaded.map(file => file.name),
+        filesProcessed: uploaded.map((file) => file.name),
       }
     },
 
@@ -476,14 +504,19 @@ export const createCvssIngestionService = (
       const concentration = pickPath(directory, files.concentration)
 
       if (!antennas || !concentration) {
-        throw new Error(`Ficheiros obrigatorios nao encontrados em ${directory}: antenas_flp.csv e tensor_concentracao.csv`)
+        throw new Error(
+          `Ficheiros obrigatorios nao encontrados em ${directory}: antenas_flp.csv e tensor_concentracao.csv`
+        )
       }
 
       const antennaResult = await ingestAntennas(readCsvFile(antennas), `file://${directory}`)
-      const concentrationResult = await ingestConcentration(readCsvFile(concentration), `file://${directory}`)
+      const concentrationResult = await ingestConcentration(
+        readCsvFile(concentration),
+        `file://${directory}`
+      )
       const registeredSources = await registerUnmappedSources(
-        names => Boolean(pickPath(directory, names)),
-        `file://${directory}`,
+        (names) => Boolean(pickPath(directory, names)),
+        `file://${directory}`
       )
 
       return {
@@ -492,10 +525,7 @@ export const createCvssIngestionService = (
         stationsUpserted: antennaResult.stationsUpserted + concentrationResult.stationsUpserted,
         coverageRowsUpserted: concentrationResult.coverageRowsUpserted,
         registeredSources,
-        filesProcessed: [
-          path.basename(antennas),
-          path.basename(concentration),
-        ],
+        filesProcessed: [path.basename(antennas), path.basename(concentration)],
       }
     },
   }

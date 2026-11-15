@@ -1,6 +1,6 @@
 # SQLens — Documentação Técnica (Frontend)
 
-> Painel de dados públicos de cobertura territorial (Luanda/Angola) — projeto para o desafio App BiT B2G.
+> Painel de dados públicos de cobertura territorial (região metropolitana de Florianópolis, SC — Brasil) — projeto para o desafio App BiT B2G.
 > Este documento existe para que qualquer membro da equipa consiga abrir o repositório, entender a arquitetura e continuar o desenvolvimento sem precisar perguntar "onde é que isto está?".
 
 ---
@@ -24,6 +24,8 @@ npm run dev        # servidor de desenvolvimento (Vite)
 npm run build       # tsc -b && vite build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint src
+npm test             # Vitest + Testing Library (unitários e de componente)
+npm run e2e          # Playwright (precisa da stack a correr; ver README.md)
 ```
 
 ### Variáveis de ambiente (`.env`)
@@ -120,12 +122,12 @@ Todos os hooks de dados seguem o mesmo padrão: se `VITE_USE_MOCK=true`, devolve
 
 | Hook | Endpoint(s) | Uso |
 |---|---|---|
-| `useRegioes()` | `GET /regions`, `GET /coverage`, `GET /indicators/data` (em paralelo) | Combina as três respostas em `Regiao[]` através de `mapBackendRegioes()` — normaliza nomes de campo divergentes entre backend e frontend (ex.: `region_id` vs `regionId`, `coverage_score` vs `coverageScore`) |
+| `useRegioes()` | `GET /regions?pageSize=100`, `GET /coverage`, `GET /indicators/data`, `GET /indicators` (em paralelo) | Combina as respostas em `Regiao[]` através de `mapBackendRegioes()` (em `src/lib/apiMappers.ts`); `/indicators/data` só traz `indicatorId`, o slug vem do catálogo `/indicators` — normaliza nomes de campo divergentes entre backend e frontend (ex.: `region_id` vs `regionId`, `coverage_score` vs `coverageScore`) |
 | `useConsultaAgente()` | `POST /agent/query` | Envia pergunta em linguagem natural, recebe SQL gerado + resultado + resposta da IA, normalizado por `mapAgentResponse()` |
 | `usePrograms(regionId?)` | `GET /programs` | Lista de programas sociais, opcionalmente filtrados por região |
 | `useIndicadores()` | `GET /indicators` | Lista de indicadores disponíveis |
 
-**Ponto de atenção para quem for integrar novos endpoints:** o backend usa nomes de campo em `camelCase` inconsistentes com o `snake_case`/PT usados nos tipos internos (`src/types/index.ts`). As funções `mapBackendRegioes()` e `mapAgentResponse()` fazem essa tradução com fallbacks (`??`) para tolerar pequenas variações — se o backend mudar um nome de campo, é aqui que se ajusta, não nos componentes.
+**Ponto de atenção para quem for integrar novos endpoints:** o backend usa nomes de campo em `camelCase` inconsistentes com o `snake_case`/PT usados nos tipos internos (`src/types/index.ts`). As funções `mapBackendRegioes()`, `mapAgentResponse()` e `pickValor()` (em `src/lib/apiMappers.ts`, com testes em `src/lib/__tests__/`) fazem essa tradução com fallbacks (`??`) para tolerar pequenas variações — se o backend mudar um nome de campo, é aqui que se ajusta, não nos componentes.
 
 ---
 

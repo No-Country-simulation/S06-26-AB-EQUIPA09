@@ -24,7 +24,8 @@ export interface Regiao {
 
 export interface DadosResponse {
   resposta_ia: string
-  dados: { regiao: string; valor: number; fonte: string }[]
+  /** `unidade`: '%' quando `valor` já é uma percentagem (0–100); '' para contagens e outras grandezas. */
+  dados: { regiao: string; valor: number; fonte: string; unidade?: '%' | '' }[]
   fontes: string[]
   sql_gerado?: string
 }

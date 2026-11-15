@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLogin, useRegister } from '../hooks/useAuth'
+import { getApiErrorMessage } from '../lib/apiError'
 
 export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -21,9 +22,9 @@ export default function LoginPage() {
         await register.mutateAsync({ name: form.name, email: form.email, password: form.password })
       }
       navigate('/app')
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? 'Erro ao autenticar. Tente novamente.'
-      setError(msg)
+    } catch (err) {
+      // `error` da API é um objeto { type, message }; nunca o renderizar diretamente
+      setError(getApiErrorMessage(err, 'Erro ao autenticar. Tente novamente.'))
     }
   }
 
@@ -39,7 +40,7 @@ export default function LoginPage() {
             SQLens
           </h1>
           <p className="font-mono text-[11px] uppercase tracking-wider text-mist-600 mt-1.5">
-            Painel de Dados Públicos · Luanda
+            Painel de Dados Públicos · Florianópolis
           </p>
         </div>
 
@@ -83,7 +84,7 @@ export default function LoginPage() {
                 type="email"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                placeholder="gestor@governo.ao"
+                placeholder="gestor@orgao.gov.br"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-ink-border bg-ink-850 text-[14px] text-mist-50 placeholder:text-mist-600 outline-none focus:border-signal-500 transition-colors"
               />
             </div>
@@ -131,7 +132,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center font-mono text-[10.5px] text-mist-600 mt-5">
-          App BiT · Desafio B2G · Angola 2025
+          App BiT · Desafio B2G
         </p>
       </div>
     </div>

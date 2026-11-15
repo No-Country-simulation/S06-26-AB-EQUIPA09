@@ -3,14 +3,13 @@ import { Ok, Err } from '@/shared/result/types'
 import { ErrorFactory } from '@/shared/result/factory'
 import { logger } from '@/shared/logger/logger'
 import { SCHEMA_CONTEXT_FOR_AGENT } from '@/db/schema'
-import { sql as pgSql } from '@/db'
+import { executeReadOnlyQuery } from './agent-sql-executor'
+import { resolveLlmConfig, LLM_NOT_CONFIGURED_MESSAGE, LLM_NOT_CONFIGURED_HINT } from './llm-provider'
 import { createAgentGuardrails } from './agent-guardrails.service'
 import { createAgentCircuitBreaker } from './agent-circuit-breaker.service'
 import { createAgentTracer } from './agent-tracer.service'
 
 const COMPONENT = 'AgentService'
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const DEFAULT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
 const MAX_RETRIES = 2
 
 const buildPrompt = (query: string, filters?: { region?: string; indicator?: string; period?: string }): string => {
@@ -93,24 +92,26 @@ export const createAgentService = (
       if (!circuitBreaker.isAvailable()) {
         const err = Err(ErrorFactory.externalService(
           'O assistente de IA está temporariamente indisponível devido a falhas consecutivas. Tenta novamente dentro de alguns instantes.',
-          'Groq', undefined, 'circuit_breaker', COMPONENT,
+          'LLM', undefined, 'circuit_breaker', COMPONENT,
         ))
         tracer.endSpan(traceId, 'llm-call', undefined, 'circuit_breaker_open')
         tracer.flushTrace(traceId)
         return err
       }
 
-      if (!process.env.GROQ_API_KEY) {
-        tracer.endSpan(traceId, 'llm-call', undefined, 'missing_groq_api_key')
+      const llm = resolveLlmConfig()
+      if (!llm) {
+        logger.error({ component: COMPONENT }, LLM_NOT_CONFIGURED_HINT)
+        tracer.endSpan(traceId, 'llm-call', undefined, 'missing_llm_api_key')
         tracer.flushTrace(traceId)
         return Err(ErrorFactory.externalService(
-          'GROQ_API_KEY não está configurada no backend',
-          'Groq', undefined, 'configuration', COMPONENT,
+          LLM_NOT_CONFIGURED_MESSAGE,
+          'LLM', undefined, 'configuration', COMPONENT,
         ))
       }
 
       const startMs = Date.now()
-      let groqModel = DEFAULT_MODEL
+      let groqModel = llm.model
       let tokensUsed: number | null = null
       let generatedSql: string | null = null
       let sqlValid = false
@@ -125,16 +126,16 @@ export const createAgentService = (
 
       try {
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-          tracer.startSpan(traceId, `llm-call-attempt-${attempt}`, { model: DEFAULT_MODEL })
+          tracer.startSpan(traceId, `llm-call-attempt-${attempt}`, { model: llm.model })
 
-          const groqResponse = await fetch(GROQ_API_URL, {
+          const groqResponse = await fetch(llm.url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+              'Authorization': `Bearer ${llm.apiKey}`,
             },
             body: JSON.stringify({
-              model: DEFAULT_MODEL,
+              model: llm.model,
               messages,
               temperature: 0.1,
               response_format: { type: 'json_object' },
@@ -143,12 +144,12 @@ export const createAgentService = (
 
           if (!groqResponse.ok) {
             const errorBody = await groqResponse.text()
-            error = `Groq API error: ${groqResponse.status} — ${errorBody}`
+            error = `${llm.label} API error: ${groqResponse.status} — ${errorBody}`
             aiResponse = error
             circuitBreaker.recordCall({ httpOk: false, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed: null })
             tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.externalService('Erro ao comunicar com o assistente de IA', 'Groq', errorBody, 'query', COMPONENT))
+            return Err(ErrorFactory.externalService('Erro ao comunicar com o assistente de IA', llm.label, errorBody, 'query', COMPONENT))
           }
 
           const groqBody = await groqResponse.json() as {
@@ -157,7 +158,7 @@ export const createAgentService = (
             choices?: Array<{ message?: { content?: string } }>
           }
 
-          groqModel = groqBody.model ?? DEFAULT_MODEL
+          groqModel = groqBody.model ?? llm.model
           tokensUsed = groqBody.usage?.total_tokens ?? null
           const content = groqBody.choices?.[0]?.message?.content
 
@@ -167,7 +168,7 @@ export const createAgentService = (
             circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
             tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.externalService('Resposta vazia do assistente', 'Groq', undefined, 'query', COMPONENT))
+            return Err(ErrorFactory.externalService('Resposta vazia do assistente', llm.label, undefined, 'query', COMPONENT))
           }
 
           tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, { model: groqModel, tokensUsed, contentLength: content.length })
@@ -264,9 +265,8 @@ export const createAgentService = (
           tracer.startSpan(traceId, 'sql-execution', { sql: generatedSql.substring(0, 200) })
 
           try {
-            const dbResult = await pgSql.unsafe(generatedSql)
-            const rows = Array.isArray(dbResult) ? dbResult : []
-            result = rows as Record<string, unknown>[]
+            const rows = await executeReadOnlyQuery(generatedSql)
+            result = rows
             rowsReturned = rows.length
             tracer.endSpan(traceId, 'sql-execution', { rowsReturned })
             break

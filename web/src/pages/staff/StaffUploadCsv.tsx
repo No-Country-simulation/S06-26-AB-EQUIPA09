@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useUploadCvssCSVs, useStaffDataSources, type CvssIngestionResult } from '../../hooks/useStaffApi'
+import { useUploadCvssCSVs, type CvssIngestionResult } from '../../hooks/useStaffApi'
 import StaffShell from '../../components/staff/StaffShell'
 
 type UploadMode = 'cvss' | 'datasource'
@@ -16,7 +16,6 @@ export default function StaffUploadCsv() {
   const [result, setResult] = useState<CvssIngestionResult | null>(null)
 
   const uploadCvss = useUploadCvssCSVs()
-  const { data: sources = [] } = useStaffDataSources()
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? [])

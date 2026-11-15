@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useConsultaAgente } from '../../hooks/useApi'
 import { useAppStore } from '../../store'
+import { getApiErrorMessage } from '../../lib/apiError'
 
 const EXEMPLOS = [
   'Onde faltam programas de formação para jovens de baixa renda?',
@@ -23,9 +24,13 @@ export default function AIQueryBar({ onResposta, compact }: Props) {
   async function handleSubmit() {
     if (!input.trim()) return
     setConsultaAtual(input)
-    const res = await consulta.mutateAsync(input)
-    setUltimaResposta(res)
-    onResposta?.()
+    try {
+      const res = await consulta.mutateAsync(input)
+      setUltimaResposta(res)
+      onResposta?.()
+    } catch {
+      // o erro fica em consulta.error e é mostrado abaixo; evita "unhandled rejection"
+    }
   }
 
   return (
@@ -73,8 +78,8 @@ export default function AIQueryBar({ onResposta, compact }: Props) {
       )}
 
       {consulta.isError && (
-        <p className="mt-3 text-[13px]" style={{ color: 'var(--color-status-bad)' }}>
-          Não foi possível processar a consulta. Tente novamente.
+        <p role="alert" className="mt-3 text-[13px]" style={{ color: 'var(--color-status-bad)' }}>
+          {getApiErrorMessage(consulta.error, 'Não foi possível processar a consulta. Tente novamente.')}
         </p>
       )}
 

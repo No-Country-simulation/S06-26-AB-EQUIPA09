@@ -16,6 +16,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "bun src/db/seed.ts",
     "ingest:cvss": "bun scripts/ingest-cvss.ts",
+    "db:cleanup-periods": "bun scripts/cleanup-coverage-periods.ts",
+    "data:load-public": "bun scripts/load-public-data.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "clean": "rm -rf dist node_modules .turbo"

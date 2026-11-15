@@ -61,7 +61,7 @@ export const recordAuthFailure = async (email: string, ip: string): Promise<void
 }
 
 export const rateLimitMiddleware = (config: RateLimitConfig) =>
-  new Elysia({ name: 'rate-limit' }).onBeforeHandle(async ({ request, set }) => {
+  new Elysia({ name: 'rate-limit' }).onBeforeHandle({ as: 'scoped' }, async ({ request, set }) => {
     const ip = getClientIp(request)
     const key = `ratelimit:${config.keyPrefix || ''}${ip}`
     const windowSeconds = Math.ceil(config.windowMs / 1000)

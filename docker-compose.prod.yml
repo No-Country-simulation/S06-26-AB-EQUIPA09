@@ -40,7 +40,10 @@ services:
       DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-10}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
-      STAFF_SEED_EMAIL: ${STAFF_SEED_EMAIL:-admin@sqlens.ao}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      COHERE_MODEL: ${COHERE_MODEL:-command-a-03-2025}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      STAFF_SEED_EMAIL: ${STAFF_SEED_EMAIL:-admin@sqlens.com.br}
       STAFF_SEED_NAME: ${STAFF_SEED_NAME:-Admin SQLens}
       STAFF_SEED_PASSWORD: ${STAFF_SEED_PASSWORD}
       TRUSTED_PROXY: "true"

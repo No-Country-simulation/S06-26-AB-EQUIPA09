@@ -6,6 +6,8 @@ interface Props {
   label?: string
   sublabel?: string
   colorClass?: string
+  /** Sem dados: mostra "—" em tom neutro em vez de um 0 que parece "péssimo". */
+  semDados?: boolean
 }
 
 function statusColor(pct: number) {
@@ -14,12 +16,12 @@ function statusColor(pct: number) {
   return 'var(--color-status-good)'
 }
 
-export default function CircularGauge({ value, max = 100, size = 56, stroke = 5, label, sublabel }: Props) {
+export default function CircularGauge({ value, max = 100, size = 56, stroke = 5, label, sublabel, semDados }: Props) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100))
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const offset = c - (pct / 100) * c
-  const color = statusColor(pct)
+  const color = semDados ? 'var(--color-ink-border-soft)' : statusColor(pct)
 
   return (
     <div className="flex items-center gap-3">
@@ -43,7 +45,7 @@ export default function CircularGauge({ value, max = 100, size = 56, stroke = 5,
           className="absolute inset-0 flex items-center justify-center font-mono font-semibold text-mist-50"
           style={{ fontSize: size * 0.27 }}
         >
-          {Math.round(value)}
+          {semDados ? '—' : Math.round(value)}
         </span>
       </div>
       {label && (

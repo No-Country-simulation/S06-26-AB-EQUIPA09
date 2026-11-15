@@ -19,7 +19,8 @@ jobs:
       DB_PASSWORD: test
       APP_URL: http://localhost:3000
       CORS_ORIGINS: http://localhost:3000
-      ENCRYPTION_KEY: 12345678901234567890123456789012
+      # 32 bytes em hex (64 caracteres), exigido pelo EncryptionService
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       SIGNED_URL_SECRET: test-secret
 
     steps:
@@ -52,3 +53,4 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm test

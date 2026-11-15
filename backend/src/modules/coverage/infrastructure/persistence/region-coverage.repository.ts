@@ -27,6 +27,9 @@ export const createRegionCoverageRepository = (db: Database): IRegionCoverageRep
   return {
     async upsert(data, tx) {
       return dbExec('upsert', 'RegionCoverageRepository', async () => {
+        if (!/^\d{4}-\d{2}$/.test(data.period)) {
+          throw new Error(`Período de cobertura inválido: ${JSON.stringify(data.period)} (esperado YYYY-MM)`)
+        }
         const conn = (tx ?? db) as Database
         const [row] = await conn
           .insert(regionCoverage)

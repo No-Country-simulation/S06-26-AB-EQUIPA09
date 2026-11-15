@@ -113,7 +113,7 @@ export const staffAuthMiddleware = () =>
       }
     })
 
-    .onBeforeHandle({ as: 'local' }, ({ staffAuth, set }) => {
+    .onBeforeHandle({ as: 'scoped' }, ({ staffAuth, set }) => {
       if (!staffAuth.success) {
         set.status = staffAuth.error.statusCode
         return staffAuth.error

@@ -72,7 +72,7 @@ function ProductScene() {
           <div className="border border-ink-border bg-ink-900/90 rounded-lg p-5">
             <p className="font-mono text-[10px] uppercase tracking-wider text-signal-500 mb-4">Prioridade de investimento</p>
             <div className="space-y-3">
-              {['Centro', 'Benfica', 'Talatona', 'Cazenga'].map((name, index) => (
+              {['Centro', 'Coqueiros', 'Palhoça', 'Campeche'].map((name, index) => (
                 <div key={name} className="grid grid-cols-[72px_1fr_36px] items-center gap-3">
                   <span className="text-[12px] text-mist-400">{name}</span>
                   <span className="h-2 rounded-full bg-ink-800 overflow-hidden">

@@ -9,7 +9,7 @@ const ARGON2_CONFIG = {
   parallelism: 1,
 } as const
 
-const DEFAULT_STAFF_EMAIL = 'admin@sqlens.ao'
+const DEFAULT_STAFF_EMAIL = 'admin@sqlens.com.br'
 const DEFAULT_STAFF_PASSWORD = 'Admin@2025!'
 const DEFAULT_STAFF_NAME = 'Admin'
 
