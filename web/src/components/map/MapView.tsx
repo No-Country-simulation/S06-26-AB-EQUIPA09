@@ -51,9 +51,9 @@ export default function MapView({ regioes }: { regioes: Regiao[] }) {
       zoomControl={true}
     >
       <TileLayer
-        attribution='&copy; OpenStreetMap &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        subdomains="abcd"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        className="map-tiles-dark"
         maxZoom={19}
       />
       <FitBounds regioes={regioes} />

@@ -55,6 +55,7 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--color-mist-600); }
 
 .leaflet-container { height: 100%; width: 100%; background: #0B0F16 !important; }
+.map-tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6); }
 .leaflet-control-attribution { background: rgba(8,11,17,0.7) !important; color: var(--color-mist-400) !important; font-size: 10px !important; }
 .leaflet-control-attribution a { color: var(--color-mist-200) !important; }
 .leaflet-control-zoom a { background: var(--color-ink-800) !important; color: var(--color-mist-200) !important; border-color: var(--color-ink-border) !important; }
