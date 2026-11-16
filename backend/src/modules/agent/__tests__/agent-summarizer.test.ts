@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test'
+import { describe, it, expect } from 'vitest'
 import { summarizeRows, buildSummaryMessages } from '../application/services/agent-summarizer'
 import type { LlmConfig } from '../application/services/llm-provider'
 
