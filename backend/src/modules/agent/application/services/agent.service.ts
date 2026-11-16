@@ -4,7 +4,12 @@ import { ErrorFactory } from '@/shared/result/factory'
 import { logger } from '@/shared/logger/logger'
 import { SCHEMA_CONTEXT_FOR_AGENT } from '@/db/schema'
 import { executeReadOnlyQuery } from './agent-sql-executor'
-import { resolveLlmConfig, LLM_NOT_CONFIGURED_MESSAGE, LLM_NOT_CONFIGURED_HINT } from './llm-provider'
+import {
+  resolveLlmConfig,
+  LLM_NOT_CONFIGURED_MESSAGE,
+  LLM_NOT_CONFIGURED_HINT,
+} from './llm-provider'
+import { summarizeRows } from './agent-summarizer'
 import { createAgentGuardrails } from './agent-guardrails.service'
 import { createAgentCircuitBreaker } from './agent-circuit-breaker.service'
 import { createAgentTracer } from './agent-tracer.service'
@@ -12,13 +17,16 @@ import { createAgentTracer } from './agent-tracer.service'
 const COMPONENT = 'AgentService'
 const MAX_RETRIES = 2
 
-const buildPrompt = (query: string, filters?: { region?: string; indicator?: string; period?: string }): string => {
+const buildPrompt = (
+  query: string,
+  filters?: { region?: string; indicator?: string; period?: string }
+): string => {
   let filterText = ''
   if (filters?.region || filters?.indicator || filters?.period) {
     const parts: string[] = []
-    if (filters.region)    parts.push(`region = ${filters.region}`)
+    if (filters.region) parts.push(`region = ${filters.region}`)
     if (filters.indicator) parts.push(`indicator = ${filters.indicator}`)
-    if (filters.period)    parts.push(`period = ${filters.period}`)
+    if (filters.period) parts.push(`period = ${filters.period}`)
     filterText = `\nUser filters: ${parts.join(', ')}`
   }
 
@@ -42,7 +50,7 @@ User query: ${query}`
 const buildReflectionPrompt = (
   query: string,
   previousSql: string,
-  errorMessage: string,
+  errorMessage: string
 ): string => {
   return `You are a specialist in the Visent CDRView telecom database.
 Your previous query was rejected. Fix it based on the error below.
@@ -64,9 +72,7 @@ ${SCHEMA_CONTEXT_FOR_AGENT}
 User query: ${query}`
 }
 
-export const createAgentService = (
-  queryLogRepo: IQueryLogRepository,
-): IAgentService => {
+export const createAgentService = (queryLogRepo: IQueryLogRepository): IAgentService => {
   const guardrails = createAgentGuardrails()
   const circuitBreaker = createAgentCircuitBreaker()
   const tracer = createAgentTracer()
@@ -79,9 +85,15 @@ export const createAgentService = (
         ipAddress: ipAddress ?? null,
       })
 
-      tracer.startSpan(traceId, 'gate1-input-validation', { query: data.query, filters: data.filters })
+      tracer.startSpan(traceId, 'gate1-input-validation', {
+        query: data.query,
+        filters: data.filters,
+      })
 
-      const gate1 = guardrails.validateGate1({ query: data.query, filters: data.filters as Record<string, string | undefined> })
+      const gate1 = guardrails.validateGate1({
+        query: data.query,
+        filters: data.filters as Record<string, string | undefined>,
+      })
       if (!gate1.success) {
         tracer.endSpan(traceId, 'gate1-input-validation', undefined, gate1.error.message)
         tracer.flushTrace(traceId)
@@ -90,10 +102,15 @@ export const createAgentService = (
       tracer.endSpan(traceId, 'gate1-input-validation', { passed: true })
 
       if (!circuitBreaker.isAvailable()) {
-        const err = Err(ErrorFactory.externalService(
-          'O assistente de IA está temporariamente indisponível devido a falhas consecutivas. Tenta novamente dentro de alguns instantes.',
-          'LLM', undefined, 'circuit_breaker', COMPONENT,
-        ))
+        const err = Err(
+          ErrorFactory.externalService(
+            'O assistente de IA está temporariamente indisponível devido a falhas consecutivas. Tenta novamente dentro de alguns instantes.',
+            'LLM',
+            undefined,
+            'circuit_breaker',
+            COMPONENT
+          )
+        )
         tracer.endSpan(traceId, 'llm-call', undefined, 'circuit_breaker_open')
         tracer.flushTrace(traceId)
         return err
@@ -104,10 +121,15 @@ export const createAgentService = (
         logger.error({ component: COMPONENT }, LLM_NOT_CONFIGURED_HINT)
         tracer.endSpan(traceId, 'llm-call', undefined, 'missing_llm_api_key')
         tracer.flushTrace(traceId)
-        return Err(ErrorFactory.externalService(
-          LLM_NOT_CONFIGURED_MESSAGE,
-          'LLM', undefined, 'configuration', COMPONENT,
-        ))
+        return Err(
+          ErrorFactory.externalService(
+            LLM_NOT_CONFIGURED_MESSAGE,
+            'LLM',
+            undefined,
+            'configuration',
+            COMPONENT
+          )
+        )
       }
 
       const startMs = Date.now()
@@ -120,7 +142,11 @@ export const createAgentService = (
       let error: string | null = null
       let rowsReturned = 0
       const messages: Array<{ role: string; content: string }> = [
-        { role: 'system', content: 'You are a specialist in the Visent CDRView telecom database. Answer in Portuguese. Respond in JSON format only.' },
+        {
+          role: 'system',
+          content:
+            'You are a specialist in the Visent CDRView telecom database. Answer in Portuguese. Respond in JSON format only.',
+        },
         { role: 'user', content: buildPrompt(data.query, data.filters) },
       ]
 
@@ -132,7 +158,7 @@ export const createAgentService = (
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${llm.apiKey}`,
+              Authorization: `Bearer ${llm.apiKey}`,
             },
             body: JSON.stringify({
               model: llm.model,
@@ -146,13 +172,26 @@ export const createAgentService = (
             const errorBody = await groqResponse.text()
             error = `${llm.label} API error: ${groqResponse.status} — ${errorBody}`
             aiResponse = error
-            circuitBreaker.recordCall({ httpOk: false, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed: null })
+            circuitBreaker.recordCall({
+              httpOk: false,
+              schemaValid: false,
+              latencyMs: Date.now() - startMs,
+              tokensUsed: null,
+            })
             tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.externalService('Erro ao comunicar com o assistente de IA', llm.label, errorBody, 'query', COMPONENT))
+            return Err(
+              ErrorFactory.externalService(
+                'Erro ao comunicar com o assistente de IA',
+                llm.label,
+                errorBody,
+                'query',
+                COMPONENT
+              )
+            )
           }
 
-          const groqBody = await groqResponse.json() as {
+          const groqBody = (await groqResponse.json()) as {
             model?: string
             usage?: { total_tokens?: number }
             choices?: Array<{ message?: { content?: string } }>
@@ -165,15 +204,34 @@ export const createAgentService = (
           if (!content) {
             error = 'Resposta vazia da IA'
             aiResponse = error
-            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            circuitBreaker.recordCall({
+              httpOk: true,
+              schemaValid: false,
+              latencyMs: Date.now() - startMs,
+              tokensUsed,
+            })
             tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.externalService('Resposta vazia do assistente', llm.label, undefined, 'query', COMPONENT))
+            return Err(
+              ErrorFactory.externalService(
+                'Resposta vazia do assistente',
+                llm.label,
+                undefined,
+                'query',
+                COMPONENT
+              )
+            )
           }
 
-          tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, { model: groqModel, tokensUsed, contentLength: content.length })
+          tracer.endSpan(traceId, `llm-call-attempt-${attempt}`, {
+            model: groqModel,
+            tokensUsed,
+            contentLength: content.length,
+          })
 
-          tracer.startSpan(traceId, `gate2-schema-validation-${attempt}`, { rawContent: content.substring(0, 200) })
+          tracer.startSpan(traceId, `gate2-schema-validation-${attempt}`, {
+            rawContent: content.substring(0, 200),
+          })
 
           let parsed: { sql?: string; explanation?: string }
           try {
@@ -183,48 +241,91 @@ export const createAgentService = (
               error = 'Resposta da IA não segue o formato JSON esperado'
               if (attempt < MAX_RETRIES) {
                 messages.push({ role: 'assistant', content })
-                messages.push({ role: 'user', content: `A resposta não está no formato JSON esperado. Responde apenas com JSON no formato { sql: string, explanation: string }.` })
+                messages.push({
+                  role: 'user',
+                  content: `A resposta não está no formato JSON esperado. Responde apenas com JSON no formato { sql: string, explanation: string }.`,
+                })
                 tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, undefined, error)
                 continue
               }
-              circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+              circuitBreaker.recordCall({
+                httpOk: true,
+                schemaValid: false,
+                latencyMs: Date.now() - startMs,
+                tokensUsed,
+              })
               tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, undefined, error)
               tracer.flushTrace(traceId)
-              return Err(ErrorFactory.validation('O assistente devolveu uma resposta em formato inesperado', [], COMPONENT))
+              return Err(
+                ErrorFactory.validation(
+                  'O assistente devolveu uma resposta em formato inesperado',
+                  [],
+                  COMPONENT
+                )
+              )
             }
             parsed = raw as { sql?: string; explanation?: string }
           } catch {
             error = 'Não foi possível interpretar a resposta da IA como JSON'
             if (attempt < MAX_RETRIES) {
               messages.push({ role: 'assistant', content })
-              messages.push({ role: 'user', content: `A resposta não é um JSON válido. Responde apenas com JSON no formato { sql: string, explanation: string }.` })
+              messages.push({
+                role: 'user',
+                content: `A resposta não é um JSON válido. Responde apenas com JSON no formato { sql: string, explanation: string }.`,
+              })
               tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, undefined, error)
               continue
             }
-            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            circuitBreaker.recordCall({
+              httpOk: true,
+              schemaValid: false,
+              latencyMs: Date.now() - startMs,
+              tokensUsed,
+            })
             tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.business('Resposta inválida do assistente', 'PARSE_ERROR', COMPONENT))
+            return Err(
+              ErrorFactory.business('Resposta inválida do assistente', 'PARSE_ERROR', COMPONENT)
+            )
           }
 
           generatedSql = parsed.sql?.trim() ?? null
           aiResponse = parsed.explanation ?? content
-          tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, { hasSql: !!generatedSql, explanation: aiResponse.substring(0, 100) })
+          tracer.endSpan(traceId, `gate2-schema-validation-${attempt}`, {
+            hasSql: !!generatedSql,
+            explanation: aiResponse.substring(0, 100),
+          })
 
-          tracer.startSpan(traceId, `gate3-sql-validation-${attempt}`, { sql: generatedSql?.substring(0, 200) })
+          tracer.startSpan(traceId, `gate3-sql-validation-${attempt}`, {
+            sql: generatedSql?.substring(0, 200),
+          })
 
           if (!generatedSql) {
             error = 'Não foi possível gerar SQL a partir da pergunta'
             if (attempt < MAX_RETRIES) {
               messages.push({ role: 'assistant', content })
-              messages.push({ role: 'user', content: `A resposta não inclui uma query SQL. Gera uma consulta SELECT válida e inclui o campo "sql".` })
+              messages.push({
+                role: 'user',
+                content: `A resposta não inclui uma query SQL. Gera uma consulta SELECT válida e inclui o campo "sql".`,
+              })
               tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
               continue
             }
-            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            circuitBreaker.recordCall({
+              httpOk: true,
+              schemaValid: false,
+              latencyMs: Date.now() - startMs,
+              tokensUsed,
+            })
             tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.business('O assistente não conseguiu gerar uma consulta SQL', 'NO_SQL_GENERATED', COMPONENT))
+            return Err(
+              ErrorFactory.business(
+                'O assistente não conseguiu gerar uma consulta SQL',
+                'NO_SQL_GENERATED',
+                COMPONENT
+              )
+            )
           }
 
           const gate3 = guardrails.validateGate3(generatedSql)
@@ -233,11 +334,19 @@ export const createAgentService = (
             sqlValid = false
             if (attempt < MAX_RETRIES) {
               messages.push({ role: 'assistant', content })
-              messages.push({ role: 'user', content: buildReflectionPrompt(data.query, generatedSql, gate3.error.message) })
+              messages.push({
+                role: 'user',
+                content: buildReflectionPrompt(data.query, generatedSql, gate3.error.message),
+              })
               tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
               continue
             }
-            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            circuitBreaker.recordCall({
+              httpOk: true,
+              schemaValid: false,
+              latencyMs: Date.now() - startMs,
+              tokensUsed,
+            })
             tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
             return gate3
@@ -249,11 +358,23 @@ export const createAgentService = (
             sqlValid = false
             if (attempt < MAX_RETRIES) {
               messages.push({ role: 'assistant', content })
-              messages.push({ role: 'user', content: buildReflectionPrompt(data.query, generatedSql, neuroSymbolic.error.message) })
+              messages.push({
+                role: 'user',
+                content: buildReflectionPrompt(
+                  data.query,
+                  generatedSql,
+                  neuroSymbolic.error.message
+                ),
+              })
               tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
               continue
             }
-            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            circuitBreaker.recordCall({
+              httpOk: true,
+              schemaValid: false,
+              latencyMs: Date.now() - startMs,
+              tokensUsed,
+            })
             tracer.endSpan(traceId, `gate3-sql-validation-${attempt}`, undefined, error)
             tracer.flushTrace(traceId)
             return neuroSymbolic
@@ -275,14 +396,28 @@ export const createAgentService = (
             sqlValid = false
             if (attempt < MAX_RETRIES) {
               messages.push({ role: 'assistant', content })
-              messages.push({ role: 'user', content: buildReflectionPrompt(data.query, generatedSql, error) })
+              messages.push({
+                role: 'user',
+                content: buildReflectionPrompt(data.query, generatedSql, error),
+              })
               tracer.endSpan(traceId, 'sql-execution', undefined, error)
               continue
             }
-            circuitBreaker.recordCall({ httpOk: true, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed })
+            circuitBreaker.recordCall({
+              httpOk: true,
+              schemaValid: false,
+              latencyMs: Date.now() - startMs,
+              tokensUsed,
+            })
             tracer.endSpan(traceId, 'sql-execution', undefined, error)
             tracer.flushTrace(traceId)
-            return Err(ErrorFactory.business('Erro ao executar consulta SQL gerada', 'SQL_EXECUTION_ERROR', COMPONENT))
+            return Err(
+              ErrorFactory.business(
+                'Erro ao executar consulta SQL gerada',
+                'SQL_EXECUTION_ERROR',
+                COMPONENT
+              )
+            )
           }
         }
 
@@ -294,24 +429,38 @@ export const createAgentService = (
         })
 
         if (rowsReturned === 0 && generatedSql) {
-          aiResponse = 'Não foram encontrados dados correspondentes à sua pergunta na base de dados atual. Tente reformular a pergunta ou verifique se os dados foram carregados.'
+          aiResponse =
+            'Não foram encontrados dados correspondentes à sua pergunta na base de dados atual. Tente reformular a pergunta ou verifique se os dados foram carregados.'
           result = null
         } else if (result && result.length > 0) {
           const cols = Object.keys(result[0])
-          const labelCol = cols.find(c => /name|regiao|região|region|municipality|cluster/.test(c)) ?? cols[0]
-          const valCol = cols.find(c => /score|valor|value|count|total|pct|concentration|people/.test(c)) ?? cols[1]
-          const lines = result.slice(0, 10).map(r => {
+          const labelCol =
+            cols.find((c) => /name|regiao|região|region|municipality|cluster/.test(c)) ?? cols[0]
+          const valCol =
+            cols.find((c) => /score|valor|value|count|total|pct|concentration|people/.test(c)) ??
+            cols[1]
+          const lines = result.slice(0, 10).map((r) => {
             const label = String(r[labelCol] ?? '')
             const val = r[valCol] ?? ''
-            const formatted = typeof val === 'number' ? (Number.isInteger(val) ? val : val.toFixed(2)) : val
+            const formatted =
+              typeof val === 'number' ? (Number.isInteger(val) ? val : val.toFixed(2)) : val
             return `${label}: ${formatted}`
           })
-          aiResponse = lines.join(' | ')
+          const fallback = lines.join(' | ')
+          tracer.startSpan(traceId, 'summarize-rows', { rows: result.length })
+          const summary = await summarizeRows(llm, data.query, result)
+          tracer.endSpan(traceId, 'summarize-rows', { summarized: summary !== null })
+          aiResponse = summary ?? fallback
         }
       } catch (err) {
         error = err instanceof Error ? err.message : String(err)
         logger.error({ err, query: data.query }, 'Agent query failed')
-        circuitBreaker.recordCall({ httpOk: false, schemaValid: false, latencyMs: Date.now() - startMs, tokensUsed: null })
+        circuitBreaker.recordCall({
+          httpOk: false,
+          schemaValid: false,
+          latencyMs: Date.now() - startMs,
+          tokensUsed: null,
+        })
         tracer.endSpan(traceId, 'llm-call', undefined, error)
         tracer.flushTrace(traceId)
         return Err(ErrorFactory.internalError('Erro interno ao processar pergunta', err, COMPONENT))
@@ -323,9 +472,9 @@ export const createAgentService = (
 
       try {
         const log = await queryLogRepo.create({
-          userId:       userId ?? null,
-          query:        data.query,
-          filters:      data.filters as QueryLog['filters'] ?? {},
+          userId: userId ?? null,
+          query: data.query,
+          filters: (data.filters as QueryLog['filters']) ?? {},
           generatedSql,
           sqlValid,
           aiResponse,
@@ -333,16 +482,16 @@ export const createAgentService = (
           latencyMs,
           groqModel,
           tokensUsed,
-          error:        error ?? null,
-          ipAddress:    ipAddress ?? null,
+          error: error ?? null,
+          ipAddress: ipAddress ?? null,
         })
 
         tracer.endSpan(traceId, 'persist-log', { logId: log.id })
         tracer.flushTrace(traceId)
 
         return Ok({
-          queryId:      log.id,
-          query:        data.query,
+          queryId: log.id,
+          query: data.query,
           generatedSql,
           sqlValid,
           result,
@@ -358,8 +507,8 @@ export const createAgentService = (
         tracer.endSpan(traceId, 'persist-log', undefined, 'persist_failed')
         tracer.flushTrace(traceId)
         return Ok({
-          queryId:      'unlogged',
-          query:        data.query,
+          queryId: 'unlogged',
+          query: data.query,
           generatedSql,
           sqlValid,
           result,
@@ -376,7 +525,9 @@ export const createAgentService = (
     async getLog(queryId) {
       const log = await queryLogRepo.findById(queryId)
       if (!log) {
-        return Err(ErrorFactory.notFound('Query log não encontrado', 'QueryLog', queryId, COMPONENT))
+        return Err(
+          ErrorFactory.notFound('Query log não encontrado', 'QueryLog', queryId, COMPONENT)
+        )
       }
       return Ok(log)
     },
@@ -387,7 +538,7 @@ export const createAgentService = (
     },
 
     async listMyLogs(userId, filters) {
-      const page    = filters?.page ?? 1
+      const page = filters?.page ?? 1
       const perPage = filters?.pageSize ?? 20
       const result = await queryLogRepo.findAll({
         userId,
